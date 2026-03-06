@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import type { SubjectCount, StandardField } from '../utils/excelUtils';
 import * as XLSX from 'xlsx';
 import styles from './SubjectTally.module.css';
@@ -15,17 +14,6 @@ interface StudentInBlokk {
 }
 
 export const SubjectTally = ({ subjects, mergedData }: SubjectTallyProps) => {
-  const [expandedSubjects, setExpandedSubjects] = useState<Set<string>>(new Set());
-
-  const toggleExpand = (subject: string) => {
-    const newExpanded = new Set(expandedSubjects);
-    if (newExpanded.has(subject)) {
-      newExpanded.delete(subject);
-    } else {
-      newExpanded.add(subject);
-    }
-    setExpandedSubjects(newExpanded);
-  };
 
   // Get students for a specific subject with blokk information
   const getStudentsForSubject = (subject: string): StudentInBlokk[] => {
@@ -84,71 +72,49 @@ export const SubjectTally = ({ subjects, mergedData }: SubjectTallyProps) => {
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Students');
     XLSX.writeFile(workbook, `${subject.replace(/[^a-z0-9]/gi, '_')}_students.xlsx`);
   };
+
   if (subjects.length === 0) {
     return <div className={styles.empty}>No subjects found</div>;
   }
 
   return (
-    <div className={styles.tally}>
-      <h2>Subject Tally</h2>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th>Subject</th>
-            <th>Student Count</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {subjects.map((item) => {
-            const isExpanded = expandedSubjects.has(item.subject);
-            const blokkBreakdown = getSubjectBlokkBreakdown(item.subject);
-            
-            return (
-              <>
-                <tr key={item.subject}>
-                  <td>
-                    <button
-                      className={styles.expandBtn}
-                      onClick={() => toggleExpand(item.subject)}
-                      aria-label={isExpanded ? 'Collapse' : 'Expand'}
-                    >
-                      <span className={styles.chevron}>{isExpanded ? '▼' : '►'}</span>
-                    </button>
-                    {item.subject}
-                  </td>
-                  <td>{item.count}</td>
-                  <td>
-                    <button
-                      className={styles.exportBtn}
-                      onClick={() => exportSubject(item.subject)}
-                      title="Export student list"
-                    >
-                      Export
-                    </button>
-                  </td>
-                </tr>
-                {isExpanded && (
-                  <tr className={styles.expandedRow}>
-                    <td colSpan={3}>
-                      <div className={styles.blokkBreakdown}>
-                        <strong>Students per Blokk:</strong>
-                        <ul>
-                          {Object.entries(blokkBreakdown).map(([blokk, count]) => (
-                            <li key={blokk}>
-                              {blokk}: {count} student{count !== 1 ? 's' : ''}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+    <table className={styles.table}>
+      <thead>
+        <tr>
+          <th>Subject</th>
+          <th>Blokk 1</th>
+          <th>Blokk 2</th>
+          <th>Blokk 3</th>
+          <th>Blokk 4</th>
+          <th>Total</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {subjects.map((item) => {
+          const blokkBreakdown = getSubjectBlokkBreakdown(item.subject);
+          
+          return (
+            <tr key={item.subject}>
+              <td>{item.subject}</td>
+              <td>{blokkBreakdown['Blokk 1']}</td>
+              <td>{blokkBreakdown['Blokk 2']}</td>
+              <td>{blokkBreakdown['Blokk 3']}</td>
+              <td>{blokkBreakdown['Blokk 4']}</td>
+              <td className={styles.totalCell}>{item.count}</td>
+              <td>
+                <button
+                  className={styles.exportBtn}
+                  onClick={() => exportSubject(item.subject)}
+                  title="Export student list"
+                >
+                  Export
+                </button>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 };

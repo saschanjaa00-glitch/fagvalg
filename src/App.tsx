@@ -16,6 +16,7 @@ function App() {
   const [uploadedFilesExpanded, setUploadedFilesExpanded] = useState(false);
   const [columnMapperExpanded, setColumnMapperExpanded] = useState(false);
   const [mergedDataExpanded, setMergedDataExpanded] = useState(false);
+  const [subjectTallyExpanded, setSubjectTallyExpanded] = useState(false);
   const [warningExpanded, setWarningExpanded] = useState(false);
 
   const handleFilesAdded = (files: ParsedFile[]) => {
@@ -194,10 +195,20 @@ function App() {
                 Merged Student Data ({mergedData.length} students)
               </h3>
               {mergedDataExpanded && (
-                <>
-                  <MergedDataView data={mergedData} />
-                  <SubjectTally subjects={subjects} mergedData={mergedData} />
-                </>
+                <MergedDataView data={mergedData} />
+              )}
+            </div>
+            
+            <div className="subject-tally-section">
+              <h3 
+                className="collapsible-header" 
+                onClick={() => setSubjectTallyExpanded(!subjectTallyExpanded)}
+              >
+                <span className="chevron">{subjectTallyExpanded ? '▼' : '►'}</span>
+                Subject Tally ({subjects.length} subjects)
+              </h3>
+              {subjectTallyExpanded && (
+                <SubjectTally subjects={subjects} mergedData={mergedData} />
               )}
             </div>
           </>
