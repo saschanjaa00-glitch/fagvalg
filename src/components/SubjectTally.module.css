@@ -1,0 +1,129 @@
+.tally {
+  background: #ffffff;
+  border-radius: 4px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid #e0e0e0;
+}
+
+.tally h2 {
+  margin-top: 0;
+  color: #1a1a1a;
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.table thead {
+  background: #f0f0f0;
+}
+
+.table th {
+  padding: 0.5rem;
+  text-align: left;
+  color: #1a1a1a;
+  font-weight: 600;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.table td {
+  padding: 0.5rem;
+  color: #333;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.table tbody tr:hover {
+  background: #f8f9fa;
+}
+
+.table tr td:nth-child(2) {
+  font-weight: 600;
+  color: #0066cc;
+}
+
+.expandBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin-right: 0.5rem;
+  color: #666;
+  font-size: 0.75rem;
+  transition: color 0.2s ease;
+  vertical-align: middle;
+}
+
+.expandBtn:hover {
+  color: #0066cc;
+}
+
+.chevron {
+  display: inline-block;
+  width: 1em;
+  text-align: center;
+}
+
+.exportBtn {
+  padding: 0.3rem 0.6rem;
+  background: #2e7d32;
+  color: white;
+  border: 1px solid #1b5e20;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: background 0.2s ease;
+}
+
+.exportBtn:hover {
+  background: #1b5e20;
+}
+
+.expandedRow {
+  background: #f8f9fa;
+}
+
+.expandedRow td {
+  padding: 1rem 0.5rem;
+}
+
+.blokkBreakdown {
+  padding: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.blokkBreakdown strong {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #1a1a1a;
+}
+
+.blokkBreakdown ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.5rem;
+}
+
+.blokkBreakdown li {
+  padding: 0.4rem 0.6rem;
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  color: #333;
+}
+
+.empty {
+  text-align: center;
+  color: #999;
+  padding: 2rem;
+  background: #f8f9fa;
+  border-radius: 4px;
+  border: 1px solid #e0e0e0;
+}

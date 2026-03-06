@@ -1,0 +1,75 @@
+.mapper {
+  background: #ffffff;
+  border-radius: 4px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid #e0e0e0;
+}
+
+.mapper h2 {
+  margin-top: 0;
+  color: #1a1a1a;
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.mapper > p {
+  color: #666;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.fileSection {
+  background: #f8f9fa;
+  border-radius: 4px;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border: 1px solid #e0e0e0;
+}
+
+.fileSection h3 {
+  color: #1a1a1a;
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.mappingGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.mappingRow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.mappingRow label {
+  color: #1a1a1a;
+  font-weight: 500;
+  font-size: 0.8rem;
+}
+
+.select {
+  padding: 0.4rem;
+  border-radius: 4px;
+  border: 1px solid #d0d0d0;
+  background: #ffffff;
+  color: #1a1a1a;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.select:hover {
+  border-color: #999;
+}
+
+.select:focus {
+  outline: none;
+  border-color: #0066cc;
+  box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
+}

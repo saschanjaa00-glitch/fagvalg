@@ -1,0 +1,102 @@
+.uploader {
+  background: #ffffff;
+  border: 2px dashed #d0d0d0;
+  border-radius: 4px;
+  padding: 1.5rem;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.uploader h2 {
+  margin-top: 0;
+  color: #1a1a1a;
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.dropZone {
+  background: #f8f9fa;
+  border: 2px dashed #d0d0d0;
+  border-radius: 4px;
+  padding: 1.25rem;
+  transition: all 0.3s ease;
+  margin-bottom: 0.75rem;
+}
+
+.dropZone.dragging {
+  background: #e3f2fd;
+  border-color: #0066cc;
+  box-shadow: 0 0 10px rgba(0, 102, 204, 0.1);
+  transform: scale(1.01);
+}
+
+.uploadLabel {
+  display: block;
+  cursor: pointer;
+  margin-bottom: 1rem;
+}
+
+.input {
+  display: none;
+}
+
+.button {
+  display: inline-block;
+  background: #0066cc;
+  color: white;
+  padding: 0.5rem 1.2rem;
+  border-radius: 4px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+  border: 1px solid #0052a3;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.button:hover {
+  background: #0052a3;
+  border-color: #003d7a;
+}
+
+.info {
+  color: #666;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+
+.errorMessage {
+  background: #ffebee;
+  border: 1px solid #ef5350;
+  border-radius: 4px;
+  padding: 1rem;
+  margin-top: 1rem;
+  color: #c62828;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.errorMessage strong {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #d32f2f;
+}
+
+.errorMessage pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: #b71c1c;
+}
+
+.successMessage {
+  background: #e8f5e9;
+  border: 1px solid #81c784;
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  margin-top: 1rem;
+  color: #2e7d32;
+  font-weight: 500;
+}
