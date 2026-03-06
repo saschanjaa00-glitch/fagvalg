@@ -1,37 +1,67 @@
 .view {
-  background: #ffffff;
-  border-radius: 4px;
-  padding: 1rem;
-  margin-bottom: 1rem;
-  border: 1px solid #e0e0e0;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  margin-bottom: 0;
+  border: none;
 }
 
 .view h2 {
   margin-top: 0;
   color: #222;
   font-weight: 600;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .view > p {
   color: #666;
-  margin-bottom: 12px;
+  margin-bottom: 6px;
   font-weight: 500;
-  font-size: 13px;
+  font-size: 12px;
+}
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.filterLabel {
+  color: #222;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.filterSelect {
+  padding: 5px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+  color: #222;
+  font-size: 12px;
+}
+
+.filterSelect:focus {
+  outline: none;
+  border-color: #999;
 }
 
 .tableContainer {
   overflow-x: auto;
   background: #f9f9f9;
   border-radius: 6px;
-  padding: 12px;
+  padding: 5px;
   border: 1px solid #e0e0e0;
+  min-width: 0;
 }
 
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 12px;
+  table-layout: fixed;
 }
 
 .table thead {
@@ -39,21 +69,66 @@
 }
 
 .table th {
-  padding: 10px 12px;
+  padding: 6px 8px;
   text-align: left;
   color: #222;
   font-weight: 600;
   border-bottom: 2px solid #e0e0e0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 60px;
+}
+
+.table th:first-child {
+  width: 15%;
+}
+
+.table th:nth-child(2) {
+  width: 10%;
+}
+
+.table th:nth-child(n+3):not(:last-child) {
+  width: auto;
+  flex: 1;
+}
+
+.table th:last-child {
+  width: 12%;
 }
 
 .table td {
-  padding: 8px 12px;
+  padding: 6px 8px;
   color: #333;
   border-bottom: 1px solid #e0e0e0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-word;
+  min-width: 60px;
+}
+
+.table td:first-child {
+  width: 15%;
+}
+
+.table td:nth-child(2) {
+  width: 10%;
+}
+
+.table td:nth-child(n+3):not(:last-child) {
+  width: auto;
+  flex: 1;
+}
+
+.table td:last-child {
+  width: 12%;
 }
 
 .table tbody tr:hover {
   background: #f5f5f5;
+}
+
+.highlightSubject {
+  font-weight: 700;
 }
 
 .empty {
@@ -63,4 +138,120 @@
   background: #f8f9fa;
   border-radius: 4px;
   border: 1px solid #e0e0e0;
+}
+
+.emptyRow {
+  text-align: center;
+  color: #999;
+  padding: 2rem 8px !important;
+}
+
+.reserveHeaderCell {
+  padding: 6px 8px;
+}
+
+.reserveToggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  margin-right: 4px;
+  font-size: 10px;
+  color: #666;
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  line-height: 12px;
+  text-align: center;
+  transition: color 0.2s;
+  vertical-align: middle;
+}
+
+.reserveToggle:hover {
+  color: #222;
+}
+
+.reserveCell {
+  color: #999;
+  background: #fafbfc;
+  font-style: italic;
+}
+
+.filterRow2 {
+  background: #f5f5f5;
+}
+
+.filterRow2 td {
+  padding: 4px 4px;
+  vertical-align: top;
+}
+
+.filterInputWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.filterRow2 td:last-child .filterInputWrapper {
+  min-width: 0;
+}
+
+.columnFilter {
+  padding: 4px 6px;
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  background: #fff;
+  color: #222;
+  font-size: 11px;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.columnFilter:focus {
+  outline: none;
+  border-color: #999;
+  background: #fafbfc;
+}
+
+.filterChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  min-width: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: #e8f1ff;
+  border: 1px solid #b3d9ff;
+  border-radius: 3px;
+  font-size: 11px;
+  color: #0066cc;
+  white-space: nowrap;
+}
+
+.chipRemove {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #0066cc;
+  cursor: pointer;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  transition: color 0.2s;
+}
+
+.chipRemove:hover {
+  color: #004499;
 }

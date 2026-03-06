@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ParsedFile, ColumnMapping, StandardField, SubjectCount } from './utils/excelUtils';
-import { mergeFiles, tallySubjects, autoDetectMapping, exportToExcel } from './utils/excelUtils';
+import { mergeFiles, tallySubjects, autoDetectMapping, exportToExcel, exportToTabText } from './utils/excelUtils';
+import * as XLSX from 'xlsx';
 import './App.css';
 import { FileUploader } from './components/FileUploader';
 import { ColumnMapper } from './components/ColumnMapper';
@@ -12,12 +13,16 @@ function App() {
   const [mappings, setMappings] = useState<Map<string, ColumnMapping>>(new Map());
   const [mergedData, setMergedData] = useState<StandardField[]>([]);
   const [subjects, setSubjects] = useState<SubjectCount[]>([]);
+  const [subjectMaxByName, setSubjectMaxByName] = useState<Record<string, number>>({});
+  const [blokkCount, setBlokkCount] = useState(4);
   
   const [uploadedFilesExpanded, setUploadedFilesExpanded] = useState(false);
   const [columnMapperExpanded, setColumnMapperExpanded] = useState(false);
   const [mergedDataExpanded, setMergedDataExpanded] = useState(false);
   const [subjectTallyExpanded, setSubjectTallyExpanded] = useState(false);
   const [warningExpanded, setWarningExpanded] = useState(false);
+  const [warningCopyStatus, setWarningCopyStatus] = useState('');
+  const [selectedMergedSubject, setSelectedMergedSubject] = useState('');
 
   const handleFilesAdded = (files: ParsedFile[]) => {
     setParsedFiles((prev) => [...prev, ...files]);
@@ -25,7 +30,7 @@ function App() {
     // Auto-detect and apply mappings for new files
     const newMappings = new Map(mappings);
     files.forEach((file) => {
-      const autoMapping = autoDetectMapping(file.columns);
+      const autoMapping = autoDetectMapping(file.columns, blokkCount);
       newMappings.set(file.id, autoMapping);
     });
     setMappings(newMappings);
@@ -38,7 +43,20 @@ function App() {
   };
 
   const handleMerge = () => {
-    const merged = mergeFiles(parsedFiles, mappings);
+    const merged = mergeFiles(parsedFiles, mappings).sort((a, b) => {
+      const classA = (a.klasse || '').trim();
+      const classB = (b.klasse || '').trim();
+      const classCompare = classA.localeCompare(classB, 'nb', { sensitivity: 'base' });
+
+      if (classCompare !== 0) {
+        return classCompare;
+      }
+
+      const nameA = (a.navn || '').trim();
+      const nameB = (b.navn || '').trim();
+      return nameA.localeCompare(nameB, 'nb', { sensitivity: 'base' });
+    });
+
     setMergedData(merged);
     setSubjects(tallySubjects(merged));
   };
@@ -48,6 +66,8 @@ function App() {
     setMappings(new Map());
     setMergedData([]);
     setSubjects([]);
+    setSubjectMaxByName({});
+    setSelectedMergedSubject('');
   };
 
   const handleRemoveFile = (fileId: string) => {
@@ -61,30 +81,142 @@ function App() {
     exportToExcel(mergedData, 'merged_students.xlsx');
   };
 
+  const handleExportText = () => {
+    exportToTabText(mergedData, 'merged_students.txt');
+  };
+
   // Get students with less than 3 blokkfag
   const getStudentsWithFewSubjects = () => {
-    return mergedData.filter(student => {
+    return mergedData
+      .filter((student) => {
+        const blokkCount = [
+          student.blokk1,
+          student.blokk2,
+          student.blokk3,
+          student.blokk4
+        ].filter((blokk) => blokk && blokk.trim() !== '').length;
+        return blokkCount < 3;
+      })
+      .sort((a, b) => (a.navn || '').localeCompare(b.navn || '', 'nb', { sensitivity: 'base' }));
+  };
+
+  const studentsWithFewSubjects = getStudentsWithFewSubjects();
+
+  const getStudentsWithFourSubjects = () => {
+    return mergedData.filter((student) => {
       const blokkCount = [
         student.blokk1,
         student.blokk2,
         student.blokk3,
         student.blokk4
-      ].filter(blokk => blokk && blokk.trim() !== '').length;
-      return blokkCount < 3;
-    });
+      ].filter((blokk) => blokk && blokk.trim() !== '').length;
+      return blokkCount >= 4;
+    })
+      .sort((a, b) => (a.navn || '').localeCompare(b.navn || '', 'nb', { sensitivity: 'base' }));
   };
 
-  const studentsWithFewSubjects = getStudentsWithFewSubjects();
+  const studentsWithFourSubjects = getStudentsWithFourSubjects();
+
+  const matchesSelectedSubject = (value: string | null, selectedSubject: string) => {
+    if (!value || !selectedSubject) {
+      return false;
+    }
+
+    return value
+      .split(/[,;]/)
+      .map((subject) => subject.trim())
+      .filter(Boolean)
+      .some((subject) => subject.localeCompare(selectedSubject, 'nb', { sensitivity: 'base' }) === 0);
+  };
+
+  const filteredMergedData = selectedMergedSubject
+    ? mergedData.filter((student) => {
+      return (
+        matchesSelectedSubject(student.blokk1, selectedMergedSubject)
+        || matchesSelectedSubject(student.blokk2, selectedMergedSubject)
+        || matchesSelectedSubject(student.blokk3, selectedMergedSubject)
+        || matchesSelectedSubject(student.blokk4, selectedMergedSubject)
+      );
+    })
+    : mergedData;
+
+  const handleWarningExport = () => {
+    const warningRows = [
+      ...studentsWithFewSubjects.map((student) => {
+        const subjects = [student.blokk1, student.blokk2, student.blokk3, student.blokk4]
+          .filter((blokk) => blokk && blokk.trim() !== '');
+        return {
+          Kategori: 'Under 3 fag',
+          Navn: student.navn || 'Ukjent',
+          Klasse: student.klasse || 'Ingen klasse',
+          AntallFag: subjects.length,
+          Fag: subjects.join(', ')
+        };
+      }),
+      ...studentsWithFourSubjects.map((student) => {
+        const subjects = [student.blokk1, student.blokk2, student.blokk3, student.blokk4]
+          .filter((blokk) => blokk && blokk.trim() !== '');
+        return {
+          Kategori: '4 fag',
+          Navn: student.navn || 'Ukjent',
+          Klasse: student.klasse || 'Ingen klasse',
+          AntallFag: subjects.length,
+          Fag: subjects.join(', ')
+        };
+      })
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(warningRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Advarsler');
+    XLSX.writeFile(workbook, 'warning_students.xlsx');
+  };
+
+  const handleWarningCopy = async () => {
+    const fewSubjectsText = studentsWithFewSubjects.map((student) => {
+      const subjects = [student.blokk1, student.blokk2, student.blokk3, student.blokk4]
+        .filter((blokk) => blokk && blokk.trim() !== '');
+      return `${student.navn || 'Ukjent'} (${student.klasse || 'Ingen klasse'}) - ${subjects.length} fag: ${subjects.join(', ') || 'Ingen'}`;
+    });
+
+    const fourSubjectsText = studentsWithFourSubjects.map((student) => {
+      const subjects = [student.blokk1, student.blokk2, student.blokk3, student.blokk4]
+        .filter((blokk) => blokk && blokk.trim() !== '');
+      return `${student.navn || 'Ukjent'} (${student.klasse || 'Ingen klasse'}) - 4 fag: ${subjects.join(', ')}`;
+    });
+
+    const clipboardText = [
+      `Advarselsliste`,
+      ``,
+      `Under 3 fag (${studentsWithFewSubjects.length})`,
+      ...fewSubjectsText,
+      ``,
+      `4+ fag (${studentsWithFourSubjects.length})`,
+      ...fourSubjectsText
+    ].join('\n');
+
+    try {
+      await navigator.clipboard.writeText(clipboardText);
+      setWarningCopyStatus('Kopiert til utklippstavle');
+    } catch {
+      setWarningCopyStatus('Kopiering mislyktes');
+    }
+
+    window.setTimeout(() => {
+      setWarningCopyStatus('');
+    }, 2000);
+  };
 
   return (
     <div className="app">
-      <header className="header">
-        <h1>Excel File Merger</h1>
-        <p>Merge multiple Excel files and map columns to standard fields</p>
-      </header>
-
       <main className="main">
-        <FileUploader onFilesAdded={handleFilesAdded} />
+        <div className="content-container">
+          <header className="header">
+            <h1>Fagvalg - Oversikt</h1>
+            <p>Slå sammen fagvalg fra flere programområder og trinn</p>
+          </header>
+
+          <FileUploader onFilesAdded={handleFilesAdded} />
 
         {parsedFiles.length > 0 && (
           <>
@@ -93,8 +225,8 @@ function App() {
                 className="collapsible-header" 
                 onClick={() => setUploadedFilesExpanded(!uploadedFilesExpanded)}
               >
-                <span className="chevron">{uploadedFilesExpanded ? '▼' : '►'}</span>
-                Uploaded Files ({parsedFiles.length})
+                <span className="chevron">{uploadedFilesExpanded ? '▼' : '▶'}</span>
+                Opplastede filer ({parsedFiles.length})
               </h3>
               {uploadedFilesExpanded && (
                 <ul>
@@ -105,7 +237,7 @@ function App() {
                         onClick={() => handleRemoveFile(file.id)}
                         className="remove-btn"
                       >
-                        Remove
+                        Fjern
                       </button>
                     </li>
                   ))}
@@ -118,24 +250,42 @@ function App() {
                 className="collapsible-header" 
                 onClick={() => setColumnMapperExpanded(!columnMapperExpanded)}
               >
-                <span className="chevron">{columnMapperExpanded ? '▼' : '►'}</span>
-                Map Columns
+                <span className="chevron">{columnMapperExpanded ? '▼' : '▶'}</span>
+                Oppsett
               </h3>
               {columnMapperExpanded && (
                 <ColumnMapper 
                   files={parsedFiles} 
                   onMappingChange={handleMappingChange}
                   currentMappings={mappings}
+                  blokkCount={blokkCount}
+                  onBlokkCountChange={setBlokkCount}
                 />
               )}
             </div>
 
             <div className="action-buttons">
               <button onClick={handleMerge} className="merge-btn">
-                Merge Data
+                Slå sammen data
               </button>
               <button onClick={handleReset} className="reset-btn">
-                Reset All
+                Tilbakestill alt
+              </button>
+              <button
+                onClick={handleExport}
+                className="export-btn"
+                disabled={mergedData.length === 0}
+                title={mergedData.length === 0 ? 'Slå sammen data først' : 'Eksporter sammenslått data'}
+              >
+                Eksporter til Excel
+              </button>
+              <button
+                onClick={handleExportText}
+                className="export-btn"
+                disabled={mergedData.length === 0}
+                title={mergedData.length === 0 ? 'Slå sammen data først' : 'Eksporter som tabulatorseparert tekstfil med fagnummer'}
+              >
+                Eksporter til TXT
               </button>
             </div>
           </>
@@ -143,23 +293,28 @@ function App() {
 
         {mergedData.length > 0 && (
           <>
-            <div className="action-buttons">
-              <button onClick={handleExport} className="export-btn">
-                Export to Excel
-              </button>
-            </div>
-            
-            {studentsWithFewSubjects.length > 0 && (
+            {(studentsWithFewSubjects.length > 0 || studentsWithFourSubjects.length > 0) && (
               <div className="warning-box">
                 <h3 
                   className="collapsible-header warning-header" 
                   onClick={() => setWarningExpanded(!warningExpanded)}
                 >
-                  <span className="chevron">{warningExpanded ? '▼' : '►'}</span>
-                  ⚠️ Warning: {studentsWithFewSubjects.length} student{studentsWithFewSubjects.length !== 1 ? 's' : ''} with less than 3 blokkfag
+                  <span className="chevron">{warningExpanded ? '▼' : '▶'}</span>
+                  ⚠️ Advarsel: {studentsWithFewSubjects.length} under 3 fag, {studentsWithFourSubjects.length} med 4+ fag
                 </h3>
                 {warningExpanded && (
                   <div className="warning-content">
+                    <div className="warning-actions">
+                      <button type="button" className="warning-action-btn" onClick={handleWarningExport}>
+                        Eksporter til Excel
+                      </button>
+                      <button type="button" className="warning-action-btn" onClick={handleWarningCopy}>
+                        Kopier til utklippstavle
+                      </button>
+                      {warningCopyStatus && <span className="warning-copy-status">{warningCopyStatus}</span>}
+                    </div>
+
+                    <h4 className="warning-subtitle">Elever med færre enn 3 blokkfag ({studentsWithFewSubjects.length})</h4>
                     <ul>
                       {studentsWithFewSubjects.map((student, idx) => {
                         const blokkCount = [
@@ -167,16 +322,35 @@ function App() {
                           student.blokk2,
                           student.blokk3,
                           student.blokk4
-                        ].filter(blokk => blokk && blokk.trim() !== '').length;
+                        ].filter((blokk) => blokk && blokk.trim() !== '').length;
                         const subjects = [
                           student.blokk1,
                           student.blokk2,
                           student.blokk3,
                           student.blokk4
-                        ].filter(blokk => blokk && blokk.trim() !== '');
+                        ].filter((blokk) => blokk && blokk.trim() !== '');
                         return (
-                          <li key={idx}>
-                            <strong>{student.navn || 'Unknown'}</strong> ({student.klasse || 'No class'}) - {blokkCount} subject{blokkCount !== 1 ? 's' : ''}: {subjects.join(', ') || 'None'}
+                          <li key={`few-${idx}`}>
+                            <strong>{student.navn || 'Ukjent'}</strong> ({student.klasse || 'Ingen klasse'}) - {blokkCount} fag: {subjects.join(', ') || 'Ingen'}
+                          </li>
+                        );
+                      })}
+                    </ul>
+
+                    <hr className="warning-divider" />
+
+                    <h4 className="warning-subtitle">Elever med 4+ blokkfag ({studentsWithFourSubjects.length})</h4>
+                    <ul>
+                      {studentsWithFourSubjects.map((student, idx) => {
+                        const subjects = [
+                          student.blokk1,
+                          student.blokk2,
+                          student.blokk3,
+                          student.blokk4
+                        ].filter((blokk) => blokk && blokk.trim() !== '');
+                        return (
+                          <li key={`four-${idx}`}>
+                            <strong>{student.navn || 'Ukjent'}</strong> ({student.klasse || 'Ingen klasse'}) - 4 fag: {subjects.join(', ')}
                           </li>
                         );
                       })}
@@ -191,11 +365,18 @@ function App() {
                 className="collapsible-header" 
                 onClick={() => setMergedDataExpanded(!mergedDataExpanded)}
               >
-                <span className="chevron">{mergedDataExpanded ? '▼' : '►'}</span>
-                Merged Student Data ({mergedData.length} students)
+                <span className="chevron">{mergedDataExpanded ? '▼' : '▶'}</span>
+                Sammenslåtte elevdata ({mergedData.length} elever)
               </h3>
               {mergedDataExpanded && (
-                <MergedDataView data={mergedData} />
+                <MergedDataView
+                  data={filteredMergedData}
+                  totalDataCount={mergedData.length}
+                  selectedSubject={selectedMergedSubject}
+                  onSubjectFilterChange={setSelectedMergedSubject}
+                  subjectOptions={subjects.map((subject) => subject.subject)}
+                  blokkCount={blokkCount}
+                />
               )}
             </div>
             
@@ -204,15 +385,21 @@ function App() {
                 className="collapsible-header" 
                 onClick={() => setSubjectTallyExpanded(!subjectTallyExpanded)}
               >
-                <span className="chevron">{subjectTallyExpanded ? '▼' : '►'}</span>
-                Subject Tally ({subjects.length} subjects)
+                <span className="chevron">{subjectTallyExpanded ? '▼' : '▶'}</span>
+                Fagoversikt ({subjects.length} fag)
               </h3>
               {subjectTallyExpanded && (
-                <SubjectTally subjects={subjects} mergedData={mergedData} />
+                <SubjectTally
+                  subjects={subjects}
+                  mergedData={mergedData}
+                  subjectMaxByName={subjectMaxByName}
+                  onSaveSubjectMaxByName={setSubjectMaxByName}
+                />
               )}
             </div>
           </>
         )}
+        </div>
       </main>
     </div>
   );

@@ -1,7 +1,91 @@
+.wrapper {
+  width: 100%;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.exportTableBtn {
+  padding: 5px 10px;
+  background: #333;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.exportTableBtn:hover {
+  background: #000;
+}
+
+.exportTableBtn:focus {
+  outline: none;
+}
+
+.overfillBtn {
+  padding: 5px 10px;
+  background: #d0d0d0;
+  color: #555;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.overfillBtn:hover {
+  background: #c0c0c0;
+}
+
+.overfillBtn:focus {
+  outline: none;
+}
+
+.settingsBtn {
+  padding: 5px 10px;
+  background: #555;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.2s;
+}
+
+.settingsBtn:hover {
+  background: #666;
+}
+
+.settingsBtn:focus {
+  outline: none;
+}
+
+.overfillBtnActive {
+  background: #e74c3c;
+  color: #fff;
+}
+
+.overfillBtnActive:hover {
+  background: #c0392b;
+}
+
+.overfillBtnActive:focus {
+  outline: none;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .table thead {
@@ -9,7 +93,7 @@
 }
 
 .table th {
-  padding: 10px 12px;
+  padding: 6px 8px;
   text-align: left;
   color: #222;
   font-weight: 600;
@@ -17,13 +101,23 @@
 }
 
 .table td {
-  padding: 8px 12px;
+  padding: 6px 8px;
   color: #333;
   border-bottom: 1px solid #e0e0e0;
 }
 
 .table tbody tr:hover {
   background: #f5f5f5;
+}
+
+.overfilledSubject {
+  color: #8b0000;
+  font-weight: 700;
+}
+
+.overfilledCell {
+  color: #8b0000 !important;
+  font-weight: 700;
 }
 
 .totalCell {
@@ -38,13 +132,13 @@
 }
 
 .exportBtn {
-  padding: 6px 12px;
+  padding: 5px 8px;
   background: #555;
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   transition: background 0.2s;
 }
@@ -60,4 +154,115 @@
   background: #f9f9f9;
   border-radius: 6px;
   border: 1px solid #e0e0e0;
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 12px;
+}
+
+.modal {
+  width: min(560px, 100%);
+  max-height: 85vh;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal h4 {
+  margin: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e0e0e0;
+  font-size: 14px;
+  color: #222;
+}
+
+.massUpdateRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e0e0e0;
+  flex-wrap: wrap;
+}
+
+.massUpdateRow label {
+  font-size: 12px;
+  color: #333;
+  font-weight: 500;
+}
+
+.maxInput {
+  width: 88px;
+  padding: 4px 6px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.maxInput:focus {
+  outline: none;
+  border-color: #999;
+}
+
+.modalTableWrap {
+  overflow: auto;
+  padding: 0 12px;
+}
+
+.modalTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.modalTable th,
+.modalTable td {
+  border-bottom: 1px solid #e0e0e0;
+  padding: 6px 4px;
+  text-align: left;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.modalSecondaryBtn,
+.modalPrimaryBtn {
+  border: none;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.modalSecondaryBtn {
+  background: #e9e9e9;
+  color: #333;
+}
+
+.modalSecondaryBtn:hover {
+  background: #dddddd;
+}
+
+.modalPrimaryBtn {
+  background: #333;
+  color: #fff;
+}
+
+.modalPrimaryBtn:hover {
+  background: #000;
 }

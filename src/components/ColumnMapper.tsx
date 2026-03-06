@@ -1,23 +1,37 @@
 import type { ParsedFile, ColumnMapping } from '../utils/excelUtils';
+import { getBlokkFields } from '../utils/excelUtils';
 import styles from './ColumnMapper.module.css';
 
 interface ColumnMapperProps {
   files: ParsedFile[];
   onMappingChange: (fileId: string, mapping: ColumnMapping) => void;
   currentMappings: Map<string, ColumnMapping>;
+  blokkCount: number;
+  onBlokkCountChange: (count: number) => void;
 }
 
-const STANDARD_FIELDS = ['navn', 'klasse', 'blokk1', 'blokk2', 'blokk3', 'blokk4'];
+const STANDARD_FIELDS_BASE = ['navn', 'klasse'];
 const FIELD_LABELS: Record<string, string> = {
-  navn: 'Navn (Name)',
-  klasse: 'Klasse (Class)',
+  navn: 'Navn',
+  klasse: 'Klasse',
   blokk1: 'Blokk 1',
   blokk2: 'Blokk 2',
   blokk3: 'Blokk 3',
   blokk4: 'Blokk 4',
+  blokk5: 'Blokk 5',
+  blokk6: 'Blokk 6',
+  blokk7: 'Blokk 7',
+  blokk8: 'Blokk 8',
 };
 
-export const ColumnMapper = ({ files, onMappingChange, currentMappings }: ColumnMapperProps) => {
+export const ColumnMapper = ({
+  files,
+  onMappingChange,
+  currentMappings,
+  blokkCount,
+  onBlokkCountChange,
+}: ColumnMapperProps) => {
+  const STANDARD_FIELDS = [...STANDARD_FIELDS_BASE, ...getBlokkFields(blokkCount)];
   // Create reverse mapping: standardField -> fileColumn
   const getReverseMapping = (fileMapping: ColumnMapping): Record<string, string | null> => {
     const reverse: Record<string, string | null> = {};
@@ -65,8 +79,19 @@ export const ColumnMapper = ({ files, onMappingChange, currentMappings }: Column
 
   return (
     <div className={styles.mapper}>
-      <h2>Map Columns</h2>
-      <p>Columns have been auto-detected. You can adjust the mappings if needed:</p>
+      <div className={styles.blokkCountSelector}>
+        <label htmlFor="blokk-count">Antall Blokk-kolonner:</label>
+        <input
+          id="blokk-count"
+          type="number"
+          min="1"
+          max="8"
+          value={blokkCount}
+          onChange={(e) => onBlokkCountChange(Math.max(1, Math.min(8, parseInt(e.target.value) || 4)))}
+          className={styles.blokkCountInput}
+        />
+      </div>
+      <p>Kolonner har blitt automatisk oppdaget. Du kan justere tilordningene om nødvendig:</p>
       
       {files.map((file) => {
         const fileMapping = currentMappings.get(file.id) || {};
@@ -84,7 +109,7 @@ export const ColumnMapper = ({ files, onMappingChange, currentMappings }: Column
                     onChange={(e) => handleMappingChange(file.id, field, e.target.value || null)}
                     className={styles.select}
                   >
-                    <option value="">-- Not mapped --</option>
+                    <option value="">-- Ikke tilordnet --</option>
                     {file.columns.map((col) => (
                       <option key={col} value={col}>
                         {col}

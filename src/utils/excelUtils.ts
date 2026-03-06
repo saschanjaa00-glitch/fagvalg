@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { mapSubjectToCode } from './subjectCodeMapping';
 
 export interface ParsedFile {
   id: string;
@@ -45,6 +46,14 @@ export const parseExcelFile = async (file: File): Promise<ParsedFile> => {
         // Second pass: get Blokk columns
         blockHeaders.forEach((header, idx) => {
           if (header && header.toLowerCase().includes('blokk')) {
+            headers.push(header);
+            columnMapping.push(idx);
+          }
+        });
+
+        // Third pass: get Reserve columns
+        blockHeaders.forEach((header, idx) => {
+          if (header && header.toLowerCase().includes('reserve')) {
             headers.push(header);
             columnMapping.push(idx);
           }
@@ -97,10 +106,23 @@ export interface StandardField {
   blokk2: string | null;
   blokk3: string | null;
   blokk4: string | null;
+  blokk5: string | null;
+  blokk6: string | null;
+  blokk7: string | null;
+  blokk8: string | null;
+  reserve: string | null;
 }
 
+export const getBlokkFields = (count: number): string[] => {
+  const fields: string[] = [];
+  for (let i = 1; i <= Math.min(count, 8); i++) {
+    fields.push(`blokk${i}`);
+  }
+  return fields;
+};
+
 // Auto-detect column mappings based on column names
-export const autoDetectMapping = (columns: string[]): ColumnMapping => {
+export const autoDetectMapping = (columns: string[], blokkCount: number = 4): ColumnMapping => {
   const mapping: ColumnMapping = {};
   
   columns.forEach((col) => {
@@ -115,17 +137,19 @@ export const autoDetectMapping = (columns: string[]): ColumnMapping => {
       mapping[col] = 'klasse';
     }
     // Map Blokk columns
-    else if (colLower.includes('blokk1')) {
-      mapping[col] = 'blokk1';
+    else if (colLower.includes('blokk')) {
+      // Extract number from blokk header
+      const match = colLower.match(/blokk(\d+)/);
+      if (match) {
+        const blokkNum = parseInt(match[1]);
+        if (blokkNum > 0 && blokkNum <= blokkCount) {
+          mapping[col] = `blokk${blokkNum}`;
+        }
+      }
     }
-    else if (colLower.includes('blokk2')) {
-      mapping[col] = 'blokk2';
-    }
-    else if (colLower.includes('blokk3')) {
-      mapping[col] = 'blokk3';
-    }
-    else if (colLower.includes('blokk4')) {
-      mapping[col] = 'blokk4';
+    // Map Reserve columns
+    else if (colLower.includes('reserve')) {
+      mapping[col] = 'reserve';
     }
     else {
       mapping[col] = null;
@@ -164,6 +188,11 @@ export const mergeFiles = (
         blokk2: null,
         blokk3: null,
         blokk4: null,
+        blokk5: null,
+        blokk6: null,
+        blokk7: null,
+        blokk8: null,
+        reserve: null,
       };
       
       Object.entries(row).forEach(([fileColumn, value]) => {
@@ -239,4 +268,36 @@ export const exportToExcel = (mergedData: StandardField[], filename: string = 'm
   ];
   
   XLSX.writeFile(workbook, filename);
+};
+
+/**
+ * Export merged data as a tab-separated text file with student numbers and subject codes
+ */
+export const exportToTabText = (mergedData: StandardField[], filename: string = 'merged_students.txt') => {
+  // Create data rows with student number starting from 1001 and mapped subject codes
+  const rows = mergedData.map((row, index) => {
+    const studentNumber = (1001 + index).toString();
+    const navn = row.navn || '';
+    const klasse = row.klasse || '';
+    const blokk1 = row.blokk1 ? mapSubjectToCode(row.blokk1) : '';
+    const blokk2 = row.blokk2 ? mapSubjectToCode(row.blokk2) : '';
+    const blokk3 = row.blokk3 ? mapSubjectToCode(row.blokk3) : '';
+    const blokk4 = row.blokk4 ? mapSubjectToCode(row.blokk4) : '';
+    
+    return [studentNumber, navn, klasse, blokk1, blokk2, blokk3, blokk4];
+  });
+  
+  // Join each row with tabs
+  const textContent = rows.map(row => row.join('\t')).join('\n');
+  
+  // Create a Blob and trigger download
+  const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 };

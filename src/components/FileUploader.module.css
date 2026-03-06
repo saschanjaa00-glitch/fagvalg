@@ -1,82 +1,77 @@
 .uploader {
-  background: #ffffff;
-  border-radius: 8px;
-  padding: 30px;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  text-align: center;
-}
-
-.uploader h2 {
-  margin-top: 0;
-  color: #222;
-  font-weight: 600;
-  font-size: 15px;
-  margin-bottom: 15px;
+  margin-bottom: 16px;
 }
 
 .dropZone {
-  background: #eff6ff;
-  border: 2px solid #ddd;
-  border-radius: 6px;
-  padding: 30px;
-  transition: border-color 0.2s;
-  margin-bottom: 15px;
+  background: #e8eef5;
+  border: 2px dashed #b8c5d6;
+  border-radius: 8px;
+  padding: 40px 20px;
+  transition: all 0.2s;
   cursor: pointer;
+  text-align: center;
+  display: block;
+}
+
+.dropZone:hover {
+  background: #dde4ee;
+  border-color: #9baabb;
 }
 
 .dropZone.dragging {
-  background: #e0eeff;
-  border-color: #666;
+  background: #d1dae6;
+  border-color: #7a8a9e;
+  border-style: solid;
+}
+
+.dropZone.loading {
+  opacity: 0.6;
+  cursor: wait;
 }
 
 .uploadLabel {
   display: block;
   cursor: pointer;
-  margin-bottom: 1rem;
 }
 
 .input {
   display: none;
 }
 
-.button {
-  display: inline-block;
-  background: #333;
-  color: white;
-  padding: 12px 24px;
-  border-radius: 6px;
+.uploadIcon {
+  color: #5a6a7d;
+  margin: 0 auto 12px;
+  width: 32px;
+  height: 32px;
+}
+
+.mainText {
+  color: #2c3e50;
+  font-size: 14px;
   font-weight: 500;
-  transition: background 0.2s;
-  border: none;
-  cursor: pointer;
-  font-size: 15px;
+  margin: 0 0 6px 0;
 }
 
-.button:hover {
-  background: #000;
-}
-
-.info {
-  color: #888;
-  margin-top: 15px;
-  font-size: 13px;
+.subText {
+  color: #7a8a9e;
+  font-size: 12px;
+  margin: 0;
 }
 
 .errorMessage {
   background: #ffebee;
   border: 1px solid #ffcdd2;
   border-radius: 6px;
-  padding: 12px;
-  margin-top: 15px;
+  padding: 8px;
+  margin-top: 6px;
   color: #c62828;
   text-align: left;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .errorMessage strong {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   color: #d32f2f;
 }
 
@@ -85,7 +80,7 @@
   white-space: pre-wrap;
   word-wrap: break-word;
   font-family: 'Courier New', monospace;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.4;
   color: #b71c1c;
 }
@@ -94,8 +89,9 @@
   background: #e8f5e9;
   border: 1px solid #c8e6c9;
   border-radius: 6px;
-  padding: 12px;
-  margin-top: 15px;
+  padding: 8px;
+  margin-top: 6px;
   color: #2e7d32;
   font-weight: 500;
+  font-size: 12px;
 }

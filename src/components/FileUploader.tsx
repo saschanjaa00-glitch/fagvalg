@@ -27,7 +27,7 @@ export const FileUploader = ({ onFilesAdded }: FileUploaderProps) => {
     setSuccessMessage(null);
 
     if (fileList.length === 0) {
-      setError('No files selected. Please choose Excel files.');
+      setError('Ingen filer valgt. Vennligst velg Excel-filer.');
       return;
     }
 
@@ -38,19 +38,19 @@ export const FileUploader = ({ onFilesAdded }: FileUploaderProps) => {
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
       if (!isExcelFile(file)) {
-        invalidFiles.push(`"${file.name}" is not a valid Excel file (.xlsx or .xls)`);
+        invalidFiles.push(`"${file.name}" er ikke en gyldig Excel-fil (.xlsx eller .xls)`);
       } else {
         validFiles.push(file);
       }
     }
 
     if (invalidFiles.length > 0) {
-      setError(`Invalid files found:\n\n${invalidFiles.join('\n')}\n\nExpected: Excel files (.xlsx or .xls)`);
+      setError(`Ugyldige filer funnet:\n\n${invalidFiles.join('\n')}\n\nForventet: Excel-filer (.xlsx eller .xls)`);
       return;
     }
 
     if (validFiles.length === 0) {
-      setError('No valid Excel files found. Please select .xlsx or .xls files.');
+      setError('Ingen gyldige Excel-filer funnet. Vennligst velg .xlsx eller .xls filer.');
       return;
     }
 
@@ -65,22 +65,22 @@ export const FileUploader = ({ onFilesAdded }: FileUploaderProps) => {
           const parsed = await parseExcelFile(file);
           parsedFiles.push(parsed);
         } catch (err) {
-          failedFiles.push(`"${file.name}": ${err instanceof Error ? err.message : 'Unknown error'}`);
+          failedFiles.push(`"${file.name}": ${err instanceof Error ? err.message : 'Ukjent feil'}`);
         }
       }
 
       if (parsedFiles.length > 0) {
         onFilesAdded(parsedFiles);
-        setSuccessMessage(`✓ Successfully loaded ${parsedFiles.length} file(s)`);
+        setSuccessMessage(`✓ Vellykket lastet ${parsedFiles.length} fil(er)`);
         
         if (failedFiles.length > 0) {
-          setError(`Failed to parse:\n\n${failedFiles.join('\n')}`);
+          setError(`Klarte ikke å behandle:\n\n${failedFiles.join('\n')}`);
         }
       } else if (failedFiles.length > 0) {
-        setError(`Failed to parse all files:\n\n${failedFiles.join('\n')}`);
+        setError(`Klarte ikke å behandle alle filer:\n\n${failedFiles.join('\n')}`);
       }
     } catch (err) {
-      setError(`Unexpected error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      setError(`Uventet feil: ${err instanceof Error ? err.message : 'Ukjent feil'}`);
     } finally {
       setIsLoading(false);
     }
@@ -93,26 +93,26 @@ export const FileUploader = ({ onFilesAdded }: FileUploaderProps) => {
     event.currentTarget.value = '';
   };
 
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDragOver = (e: React.DragEvent<HTMLLabelElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(true);
   };
 
-  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDragLeave = (e: React.DragEvent<HTMLLabelElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
   };
 
-  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = async (e: React.DragEvent<HTMLLabelElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
 
     const files = e.dataTransfer.files;
     if (!files) {
-      setError('No files were dropped. Please try again.');
+      setError('Ingen filer ble sluppet. Vennligst prøv igjen.');
       return;
     }
 
@@ -121,31 +121,34 @@ export const FileUploader = ({ onFilesAdded }: FileUploaderProps) => {
 
   return (
     <div className={styles.uploader}>
-      <h2>Upload Excel Files</h2>
-      
-      <div
-        className={`${styles.dropZone} ${isDragging ? styles.dragging : ''}`}
+      <label
+        className={`${styles.dropZone} ${isDragging ? styles.dragging : ''} ${isLoading ? styles.loading : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        <label className={styles.uploadLabel}>
-          <input
-            type="file"
-            multiple
-            accept=".xlsx,.xls"
-            onChange={handleFileSelect}
-            disabled={isLoading}
-            className={styles.input}
-          />
-          <span className={styles.button}>
-            {isLoading ? 'Processing...' : 'Choose Files'}
-          </span>
-        </label>
-        <p className={styles.info}>
-          Or drag and drop Excel files here
+        <input
+          type="file"
+          multiple
+          accept=".xlsx,.xls"
+          onChange={handleFileSelect}
+          disabled={isLoading}
+          className={styles.input}
+        />
+        <div className={styles.uploadIcon}>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+        </div>
+        <p className={styles.mainText}>
+          {isLoading ? 'Behandler filer...' : 'Klikk for å velge eller dra Excel-filer hit'}
         </p>
-      </div>
+        <p className={styles.subText}>
+          Støtter .xlsx og .xls filer
+        </p>
+      </label>
 
       {error && (
         <div className={styles.errorMessage}>
