@@ -23,6 +23,17 @@ export const SubjectTally = ({ subjects, mergedData, subjectMaxByName, onSaveSub
   const [showOverfillModal, setShowOverfillModal] = useState(false);
   const [massUpdateMax, setMassUpdateMax] = useState(String(DEFAULT_MAX_PER_SUBJECT));
   const [draftSubjectMaxByName, setDraftSubjectMaxByName] = useState<Record<string, string>>({});
+  const [copiedSubject, setCopiedSubject] = useState<string | null>(null);
+
+  const handleCopyTotal = async (subject: string, count: number) => {
+    try {
+      await navigator.clipboard.writeText(String(count));
+      setCopiedSubject(subject);
+      setTimeout(() => setCopiedSubject(null), 500);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
 
   const getSavedMax = (subject: string): number => {
     return subjectMaxByName[subject] ?? DEFAULT_MAX_PER_SUBJECT;
@@ -199,7 +210,19 @@ export const SubjectTally = ({ subjects, mergedData, subjectMaxByName, onSaveSub
                 <td className={markOverfilled && blokk2Over ? styles.overfilledCell : undefined}>{blokkBreakdown['Blokk 2']}</td>
                 <td className={markOverfilled && blokk3Over ? styles.overfilledCell : undefined}>{blokkBreakdown['Blokk 3']}</td>
                 <td className={markOverfilled && blokk4Over ? styles.overfilledCell : undefined}>{blokkBreakdown['Blokk 4']}</td>
-                <td className={styles.totalCell}>{item.count}</td>
+                <td 
+                  className={styles.totalCell}
+                  onDoubleClick={() => handleCopyTotal(item.subject, item.count)}
+                  title="Dobbeltklikk for å kopiere"
+                  style={{ 
+                    cursor: 'pointer', 
+                    userSelect: 'none',
+                    backgroundColor: copiedSubject === item.subject ? '#4CAF50' : undefined,
+                    transition: 'background-color 0.5s ease-out'
+                  }}
+                >
+                  {item.count}
+                </td>
                 <td>
                   <button
                     className={styles.exportBtn}
