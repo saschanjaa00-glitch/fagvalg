@@ -28,7 +28,6 @@ function App() {
   const [subjectMaxByName, setSubjectMaxByName] = useState<Record<string, number>>({});
   const [blokkCount, setBlokkCount] = useState(4);
   
-  const [uploadedFilesExpanded, setUploadedFilesExpanded] = useState(false);
   const [columnMapperExpanded, setColumnMapperExpanded] = useState(false);
   const [mergedDataExpanded, setMergedDataExpanded] = useState(false);
   const [subjectTallyExpanded, setSubjectTallyExpanded] = useState(false);
@@ -310,28 +309,20 @@ function App() {
         {parsedFiles.length > 0 && (
           <>
             <div className="uploaded-files">
-              <h3 
-                className="collapsible-header" 
-                onClick={() => setUploadedFilesExpanded(!uploadedFilesExpanded)}
-              >
-                <span className="chevron">{uploadedFilesExpanded ? '▼' : '▶'}</span>
-                Opplastede filer ({parsedFiles.length})
-              </h3>
-              {uploadedFilesExpanded && (
-                <ul>
-                  {parsedFiles.map((file) => (
-                    <li key={file.id}>
-                      <span>{file.filename}</span>
-                      <button
-                        onClick={() => handleRemoveFile(file.id)}
-                        className="remove-btn"
-                      >
-                        Fjern
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <h3 className="uploaded-files-title">Opplastede filer ({parsedFiles.length})</h3>
+              <ul>
+                {parsedFiles.map((file) => (
+                  <li key={file.id}>
+                    <span>{file.filename}</span>
+                    <button
+                      onClick={() => handleRemoveFile(file.id)}
+                      className="remove-btn"
+                    >
+                      Fjern
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </div>
 
             <div className="column-mapper-section">
