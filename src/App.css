@@ -105,7 +105,6 @@
 }
 
 .merge-btn,
-.reset-btn,
 .clear-storage-btn,
 .export-btn {
   padding: 7px 12px;
@@ -118,7 +117,6 @@
 }
 
 .merge-btn:disabled,
-.reset-btn:disabled,
 .clear-storage-btn:disabled,
 .export-btn:disabled {
   opacity: 0.6;
@@ -134,15 +132,6 @@
   background: #000;
 }
 
-.reset-btn {
-  background: #c97979;
-  color: white;
-}
-
-.reset-btn:hover {
-  background: #b35555;
-}
-
 .export-btn {
   background: #555;
   color: white;
@@ -153,12 +142,12 @@
 }
 
 .clear-storage-btn {
-  background: #8c6f3a;
+  background: #c97979;
   color: white;
 }
 
 .clear-storage-btn:hover {
-  background: #735a2f;
+  background: #b35555;
 }
 
 .collapsible-header {

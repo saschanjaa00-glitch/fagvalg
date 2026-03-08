@@ -357,11 +357,8 @@ function App() {
               <button onClick={handleMerge} className="merge-btn">
                 Slå sammen data
               </button>
-              <button onClick={handleReset} className="reset-btn">
-                Tilbakestill alt
-              </button>
               <button onClick={handleClearStoredData} className="clear-storage-btn">
-                Tøm lagret data
+                Tøm data
               </button>
               <button
                 onClick={handleExport}
