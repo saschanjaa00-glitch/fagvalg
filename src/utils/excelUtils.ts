@@ -274,15 +274,42 @@ export const exportToExcel = (mergedData: StandardField[], filename: string = 'm
  * Export merged data as a tab-separated text file with student numbers and subject codes
  */
 export const exportToTabText = (mergedData: StandardField[], filename: string = 'merged_students.txt') => {
+  const getBlockLetter = (blockNumber: number): string => {
+    let result = '';
+    let n = blockNumber;
+
+    while (n > 0) {
+      const remainder = (n - 1) % 26;
+      result = String.fromCharCode(65 + remainder) + result;
+      n = Math.floor((n - 1) / 26);
+    }
+
+    return result;
+  };
+
+  const mapBlockSubjects = (subjectValue: string | null, blockNumber: number): string => {
+    if (!subjectValue) {
+      return '';
+    }
+
+    const blockLetter = getBlockLetter(blockNumber);
+    return subjectValue
+      .split(/[,;]/)
+      .map((subject) => subject.trim())
+      .filter((subject) => subject.length > 0)
+      .map((subject) => `${mapSubjectToCode(subject)}${blockLetter}`)
+      .join(', ');
+  };
+
   // Create data rows with student number starting from 1001 and mapped subject codes
   const rows = mergedData.map((row, index) => {
     const studentNumber = (1001 + index).toString();
     const navn = row.navn || '';
     const klasse = row.klasse || '';
-    const blokk1 = row.blokk1 ? mapSubjectToCode(row.blokk1) : '';
-    const blokk2 = row.blokk2 ? mapSubjectToCode(row.blokk2) : '';
-    const blokk3 = row.blokk3 ? mapSubjectToCode(row.blokk3) : '';
-    const blokk4 = row.blokk4 ? mapSubjectToCode(row.blokk4) : '';
+    const blokk1 = mapBlockSubjects(row.blokk1, 1);
+    const blokk2 = mapBlockSubjects(row.blokk2, 2);
+    const blokk3 = mapBlockSubjects(row.blokk3, 3);
+    const blokk4 = mapBlockSubjects(row.blokk4, 4);
     
     return [studentNumber, navn, klasse, blokk1, blokk2, blokk3, blokk4];
   });
