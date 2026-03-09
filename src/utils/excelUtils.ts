@@ -287,9 +287,9 @@ export const exportToTabText = (mergedData: StandardField[], filename: string = 
     return result;
   };
 
-  const mapBlockSubjects = (subjectValue: string | null, blockNumber: number): string => {
+  const mapBlockSubjects = (subjectValue: string | null, blockNumber: number): string[] => {
     if (!subjectValue) {
-      return '';
+      return [];
     }
 
     const blockLetter = getBlockLetter(blockNumber);
@@ -297,21 +297,22 @@ export const exportToTabText = (mergedData: StandardField[], filename: string = 
       .split(/[,;]/)
       .map((subject) => subject.trim())
       .filter((subject) => subject.length > 0)
-      .map((subject) => `${mapSubjectToCode(subject)}${blockLetter}`)
-      .join(', ');
+      .map((subject) => `${mapSubjectToCode(subject)}${blockLetter}`);
   };
 
-  // Create data rows with student number starting from 1001 and mapped subject codes
+  // Create rows with id, name, class and one combined subject column.
   const rows = mergedData.map((row, index) => {
     const studentNumber = (1001 + index).toString();
     const navn = row.navn || '';
     const klasse = row.klasse || '';
-    const blokk1 = mapBlockSubjects(row.blokk1, 1);
-    const blokk2 = mapBlockSubjects(row.blokk2, 2);
-    const blokk3 = mapBlockSubjects(row.blokk3, 3);
-    const blokk4 = mapBlockSubjects(row.blokk4, 4);
+    const subjects = [
+      ...mapBlockSubjects(row.blokk1, 1),
+      ...mapBlockSubjects(row.blokk2, 2),
+      ...mapBlockSubjects(row.blokk3, 3),
+      ...mapBlockSubjects(row.blokk4, 4),
+    ].join(',');
     
-    return [studentNumber, navn, klasse, blokk1, blokk2, blokk3, blokk4];
+    return [studentNumber, navn, klasse, subjects];
   });
   
   // Join each row with tabs
