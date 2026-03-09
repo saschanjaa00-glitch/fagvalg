@@ -398,7 +398,7 @@ export const exportToTabText = (mergedData: StandardField[], filename: string = 
       .split(/[,;]/)
       .map((subject) => subject.trim())
       .filter((subject) => subject.length > 0)
-      .map((subject) => mapSubjectToCode(subject))
+      .map((subject) => `${subject} (${mapSubjectToCode(subject)})`)
       .join(',');
   };
 
