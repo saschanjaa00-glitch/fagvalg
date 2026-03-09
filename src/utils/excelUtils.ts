@@ -107,6 +107,11 @@ const isBlokkMatVg2Header = (header: string): boolean => {
   return normalizeHeader(header) === 'blokkmatvg2';
 };
 
+const isReserveHeader = (header: string): boolean => {
+  const normalized = normalizeHeader(header);
+  return normalized.includes('reserve') || normalized === 'res';
+};
+
 const isMath2PHeader = (header: string): boolean => {
   const normalized = header.trim().toLowerCase();
   return normalized === 'matematikk 2p' || normalized === '2p';
@@ -181,6 +186,10 @@ export const autoDetectMapping = (
     else if (isMathR1Header(col)) {
       mapping[col] = 'matematikkr1';
     }
+    // Map Reserve columns
+    else if (isReserveHeader(col)) {
+      mapping[col] = 'reserve';
+    }
     // Map Blokk columns
     else if (colLower.includes('blokk')) {
       // Extract number from blokk header
@@ -191,10 +200,6 @@ export const autoDetectMapping = (
           mapping[col] = `blokk${blokkNum}`;
         }
       }
-    }
-    // Map Reserve columns
-    else if (colLower.includes('reserve')) {
-      mapping[col] = 'reserve';
     }
     else {
       mapping[col] = null;

@@ -10,7 +10,7 @@ interface ColumnMapperProps {
   onBlokkCountChange: (count: number) => void;
 }
 
-const STANDARD_FIELDS_BASE = ['navn', 'klasse', 'blokkmatvg2', 'matematikk2p', 'matematikks1', 'matematikkr1'];
+const STANDARD_FIELDS_BASE = ['navn', 'klasse', 'blokkmatvg2', 'matematikk2p', 'matematikks1', 'matematikkr1', 'reserve'];
 const FIELD_LABELS: Record<string, string> = {
   navn: 'Navn',
   klasse: 'Klasse',
@@ -18,6 +18,7 @@ const FIELD_LABELS: Record<string, string> = {
   matematikk2p: 'Matematikk 2P',
   matematikks1: 'Matematikk S1',
   matematikkr1: 'Matematikk R1',
+  reserve: 'Reserve',
   blokk1: 'Blokk 1',
   blokk2: 'Blokk 2',
   blokk3: 'Blokk 3',
