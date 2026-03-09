@@ -333,6 +333,7 @@ export const exportToExcel = (mergedData: StandardField[], filename: string = 'm
     'Blokk 2': row.blokk2 || '',
     'Blokk 3': row.blokk3 || '',
     'Blokk 4': row.blokk4 || '',
+    'Reserve': row.reserve || '',
   }));
   
   const worksheet = XLSX.utils.json_to_sheet(exportData);
@@ -347,6 +348,7 @@ export const exportToExcel = (mergedData: StandardField[], filename: string = 'm
     { wch: 20 },
     { wch: 20 },
     { wch: 20 },
+    { wch: 24 },
   ];
   
   XLSX.writeFile(workbook, filename);
@@ -382,6 +384,19 @@ export const exportToTabText = (mergedData: StandardField[], filename: string = 
       .map((subject) => `${mapSubjectToCode(subject)}${blockLetter}`);
   };
 
+  const mapReserveSubjects = (subjectValue: string | null): string => {
+    if (!subjectValue) {
+      return '';
+    }
+
+    return subjectValue
+      .split(/[,;]/)
+      .map((subject) => subject.trim())
+      .filter((subject) => subject.length > 0)
+      .map((subject) => mapSubjectToCode(subject))
+      .join(',');
+  };
+
   // Create rows with id, name, class and one combined subject column.
   const rows = mergedData.map((row, index) => {
     const studentNumber = (1001 + index).toString();
@@ -393,8 +408,9 @@ export const exportToTabText = (mergedData: StandardField[], filename: string = 
       ...mapBlockSubjects(row.blokk3, 3),
       ...mapBlockSubjects(row.blokk4, 4),
     ].join(',');
+    const reserveSubjects = mapReserveSubjects(row.reserve);
     
-    return [studentNumber, navn, klasse, subjects];
+    return [studentNumber, navn, klasse, subjects, reserveSubjects];
   });
   
   // Join each row with tabs
