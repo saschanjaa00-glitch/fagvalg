@@ -35,9 +35,9 @@ export const parseExcelFile = async (file: File): Promise<ParsedFile> => {
         const headers: string[] = [];
         const columnMapping: (number | null)[] = []; // Map to original column index
         
-        // First pass: get Navn and Klasse columns
+        // First pass: include all row-5 headers so users can remap in Oppsett.
         mainHeaders.forEach((header, idx) => {
-          if (header && (header.toLowerCase().includes('navn') || header.toLowerCase() === 'klasse')) {
+          if (header) {
             headers.push(header);
             columnMapping.push(idx);
           }
@@ -99,9 +99,36 @@ export interface ColumnMapping {
   [key: string]: string | null; // fileColumn -> standardField
 }
 
+const normalizeHeader = (header: string): string => {
+  return header.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+};
+
+const isBlokkMatVg2Header = (header: string): boolean => {
+  return normalizeHeader(header) === 'blokkmatvg2';
+};
+
+const isMath2PHeader = (header: string): boolean => {
+  const normalized = header.trim().toLowerCase();
+  return normalized === 'matematikk 2p' || normalized === '2p';
+};
+
+const isMathS1Header = (header: string): boolean => {
+  const normalized = header.trim().toLowerCase();
+  return normalized === 'matematikk s1' || normalized === 's1';
+};
+
+const isMathR1Header = (header: string): boolean => {
+  const normalized = header.trim().toLowerCase();
+  return normalized === 'matematikk r1' || normalized === 'r1';
+};
+
 export interface StandardField {
   navn: string | null;
   klasse: string | null;
+  blokkmatvg2: string | null;
+  matematikk2p: string | null;
+  matematikks1: string | null;
+  matematikkr1: string | null;
   blokk1: string | null;
   blokk2: string | null;
   blokk3: string | null;
@@ -122,7 +149,11 @@ export const getBlokkFields = (count: number): string[] => {
 };
 
 // Auto-detect column mappings based on column names
-export const autoDetectMapping = (columns: string[], blokkCount: number = 4): ColumnMapping => {
+export const autoDetectMapping = (
+  columns: string[],
+  blokkCount: number = 4,
+  rows: Record<string, string>[] = []
+): ColumnMapping => {
   const mapping: ColumnMapping = {};
   
   columns.forEach((col) => {
@@ -135,6 +166,20 @@ export const autoDetectMapping = (columns: string[], blokkCount: number = 4): Co
     // Map Klasse to klasse
     else if (colLower === 'klasse') {
       mapping[col] = 'klasse';
+    }
+    // Map combined math choice column
+    else if (isBlokkMatVg2Header(col)) {
+      mapping[col] = 'blokkmatvg2';
+    }
+    // Map dedicated math columns
+    else if (isMath2PHeader(col)) {
+      mapping[col] = 'matematikk2p';
+    }
+    else if (isMathS1Header(col)) {
+      mapping[col] = 'matematikks1';
+    }
+    else if (isMathR1Header(col)) {
+      mapping[col] = 'matematikkr1';
     }
     // Map Blokk columns
     else if (colLower.includes('blokk')) {
@@ -155,6 +200,39 @@ export const autoDetectMapping = (columns: string[], blokkCount: number = 4): Co
       mapping[col] = null;
     }
   });
+
+  const alreadyMappedToBlokkMat = Object.values(mapping).includes('blokkmatvg2');
+  if (!alreadyMappedToBlokkMat && rows.length > 0) {
+    const mathTokenRegex = /(^|[^a-z0-9])(2p|s1|r1)([^a-z0-9]|$)/i;
+    let bestColumn: string | null = null;
+    let bestScore = 0;
+
+    columns.forEach((col) => {
+      const mappedField = mapping[col];
+      const isReservedField = mappedField !== null && mappedField !== 'blokkmatvg2';
+      if (isReservedField) {
+        return;
+      }
+
+      const score = rows.reduce((acc, row) => {
+        const value = (row[col] || '').toString().trim();
+        if (!value) {
+          return acc;
+        }
+
+        return acc + (mathTokenRegex.test(value) ? 1 : 0);
+      }, 0);
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestColumn = col;
+      }
+    });
+
+    if (bestColumn && bestScore > 0) {
+      mapping[bestColumn] = 'blokkmatvg2';
+    }
+  }
   
   return mapping;
 };
@@ -184,6 +262,10 @@ export const mergeFiles = (
       const standardRow: StandardField = {
         navn: null,
         klasse: null,
+        blokkmatvg2: null,
+        matematikk2p: null,
+        matematikks1: null,
+        matematikkr1: null,
         blokk1: null,
         blokk2: null,
         blokk3: null,

@@ -112,7 +112,7 @@ function App() {
     // Auto-detect and apply mappings for new files
     const newMappings = new Map(mappings);
     files.forEach((file) => {
-      const autoMapping = autoDetectMapping(file.columns, blokkCount);
+      const autoMapping = autoDetectMapping(file.columns, blokkCount, file.data);
       newMappings.set(file.id, autoMapping);
     });
     setMappings(newMappings);

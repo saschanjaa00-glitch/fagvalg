@@ -157,38 +157,51 @@ export const SubjectTally = ({ subjects, mergedData, subjectMaxByName, onSaveSub
     XLSX.writeFile(workbook, 'subject_tally.xlsx');
   };
 
-  const normalizeSubject = (value: string): string => value.trim().toLowerCase();
+  const extractMathOptionsFromBlokkMat = (value: string | null): Set<'2P' | 'S1' | 'R1'> => {
+    const selected = new Set<'2P' | 'S1' | 'R1'>();
 
-  const countMathOption = (aliases: string[]): number => {
-    const normalizedAliases = new Set(aliases.map(normalizeSubject));
-    let count = 0;
+    if (!value) {
+      return selected;
+    }
 
-    mergedData.forEach((student) => {
-      const chosenSubjects = [student.blokk1, student.blokk2, student.blokk3, student.blokk4]
-        .flatMap((blokk) => (blokk ? blokk.split(/[,;]/) : []))
-        .map((subject) => normalizeSubject(subject))
-        .filter((subject) => subject.length > 0);
+    value
+      .split(/[,;/]/)
+      .map((part) => part.trim().toUpperCase().replace(/\s+/g, ''))
+      .filter((part) => part.length > 0)
+      .forEach((part) => {
+        if (part.includes('2P')) {
+          selected.add('2P');
+        }
+        if (part.includes('S1')) {
+          selected.add('S1');
+        }
+        if (part.includes('R1')) {
+          selected.add('R1');
+        }
+      });
 
-      if (chosenSubjects.some((subject) => normalizedAliases.has(subject))) {
-        count += 1;
-      }
-    });
+    return selected;
+  };
 
-    return count;
+  const countMathOption = (option: '2P' | 'S1' | 'R1'): number => {
+    return mergedData.reduce((count, student) => {
+      const selected = extractMathOptionsFromBlokkMat(student.blokkmatvg2);
+      return count + (selected.has(option) ? 1 : 0);
+    }, 0);
   };
 
   const mathOptionCounts: MathOptionCount[] = [
     {
       label: 'Matematikk 2P',
-      count: countMathOption(['Matematikk 2P', '2P']),
+      count: countMathOption('2P'),
     },
     {
       label: 'Matematikk S1',
-      count: countMathOption(['Matematikk S1', 'S1']),
+      count: countMathOption('S1'),
     },
     {
       label: 'Matematikk R1',
-      count: countMathOption(['Matematikk R1', 'R1']),
+      count: countMathOption('R1'),
     },
   ];
 

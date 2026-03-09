@@ -10,10 +10,14 @@ interface ColumnMapperProps {
   onBlokkCountChange: (count: number) => void;
 }
 
-const STANDARD_FIELDS_BASE = ['navn', 'klasse'];
+const STANDARD_FIELDS_BASE = ['navn', 'klasse', 'blokkmatvg2', 'matematikk2p', 'matematikks1', 'matematikkr1'];
 const FIELD_LABELS: Record<string, string> = {
   navn: 'Navn',
   klasse: 'Klasse',
+  blokkmatvg2: 'Mattevalg-kolonne (R1/S1/2P)',
+  matematikk2p: 'Matematikk 2P',
+  matematikks1: 'Matematikk S1',
+  matematikkr1: 'Matematikk R1',
   blokk1: 'Blokk 1',
   blokk2: 'Blokk 2',
   blokk3: 'Blokk 3',
