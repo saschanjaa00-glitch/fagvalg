@@ -16,6 +16,11 @@ interface StudentInBlokk {
   blokk: string;
 }
 
+interface MathOptionCount {
+  label: string;
+  count: number;
+}
+
 const DEFAULT_MAX_PER_SUBJECT = 30;
 
 export const SubjectTally = ({ subjects, mergedData, subjectMaxByName, onSaveSubjectMaxByName }: SubjectTallyProps) => {
@@ -152,6 +157,41 @@ export const SubjectTally = ({ subjects, mergedData, subjectMaxByName, onSaveSub
     XLSX.writeFile(workbook, 'subject_tally.xlsx');
   };
 
+  const normalizeSubject = (value: string): string => value.trim().toLowerCase();
+
+  const countMathOption = (aliases: string[]): number => {
+    const normalizedAliases = new Set(aliases.map(normalizeSubject));
+    let count = 0;
+
+    mergedData.forEach((student) => {
+      const chosenSubjects = [student.blokk1, student.blokk2, student.blokk3, student.blokk4]
+        .flatMap((blokk) => (blokk ? blokk.split(/[,;]/) : []))
+        .map((subject) => normalizeSubject(subject))
+        .filter((subject) => subject.length > 0);
+
+      if (chosenSubjects.some((subject) => normalizedAliases.has(subject))) {
+        count += 1;
+      }
+    });
+
+    return count;
+  };
+
+  const mathOptionCounts: MathOptionCount[] = [
+    {
+      label: 'Matematikk 2P',
+      count: countMathOption(['Matematikk 2P', '2P']),
+    },
+    {
+      label: 'Matematikk S1',
+      count: countMathOption(['Matematikk S1', 'S1']),
+    },
+    {
+      label: 'Matematikk R1',
+      count: countMathOption(['Matematikk R1', 'R1']),
+    },
+  ];
+
   if (subjects.length === 0) {
     return <div className={styles.empty}>Ingen fag funnet</div>;
   }
@@ -235,6 +275,24 @@ export const SubjectTally = ({ subjects, mergedData, subjectMaxByName, onSaveSub
               </tr>
             );
           })}
+        </tbody>
+      </table>
+
+      <h4 className={styles.subSectionTitle}>Matematikkvalg</h4>
+      <table className={styles.mathTable}>
+        <thead>
+          <tr>
+            <th>Fag</th>
+            <th>Antall</th>
+          </tr>
+        </thead>
+        <tbody>
+          {mathOptionCounts.map((item) => (
+            <tr key={item.label}>
+              <td>{item.label}</td>
+              <td className={styles.mathCountCell}>{item.count}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
 
