@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { SubjectCount, StandardField } from '../utils/excelUtils';
-import * as XLSX from 'xlsx';
+import { loadXlsx } from '../utils/excelUtils';
 import styles from './SubjectTally.module.css';
 
 interface SubjectTallyProps {
@@ -123,7 +123,8 @@ export const SubjectTally = ({ subjects, mergedData, subjectMaxByName, onSaveSub
   };
 
   // Export students for a specific subject
-  const exportSubject = (subject: string) => {
+  const exportSubject = async (subject: string) => {
+    const XLSX = await loadXlsx();
     const students = getStudentsForSubject(subject);
     
     const exportData = students.map((student) => ({
@@ -138,7 +139,8 @@ export const SubjectTally = ({ subjects, mergedData, subjectMaxByName, onSaveSub
     XLSX.writeFile(workbook, `${subject.replace(/[^a-z0-9]/gi, '_')}_students.xlsx`);
   };
 
-  const exportTable = () => {
+  const exportTable = async () => {
+    const XLSX = await loadXlsx();
     const exportData = subjects.map((item) => {
       const blokkBreakdown = getSubjectBlokkBreakdown(item.subject);
       return {

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ParsedFile, ColumnMapping, StandardField, SubjectCount } from './utils/excelUtils';
-import { mergeFiles, tallySubjects, autoDetectMapping, exportToExcel, exportToTabText } from './utils/excelUtils';
-import * as XLSX from 'xlsx';
+import { mergeFiles, tallySubjects, autoDetectMapping, exportToExcel, exportToTabText, loadXlsx } from './utils/excelUtils';
 import './App.css';
 import { FileUploader } from './components/FileUploader';
 import { ColumnMapper } from './components/ColumnMapper';
@@ -165,8 +164,8 @@ function App() {
     setMappings(newMappings);
   };
 
-  const handleExport = () => {
-    exportToExcel(mergedData, 'merged_students.xlsx');
+  const handleExport = async () => {
+    await exportToExcel(mergedData, 'merged_students.xlsx');
   };
 
   const handleExportText = () => {
@@ -228,7 +227,8 @@ function App() {
     })
     : mergedData;
 
-  const handleWarningExport = () => {
+  const handleWarningExport = async () => {
+    const XLSX = await loadXlsx();
     const warningRows = [
       ...studentsWithFewSubjects.map((student) => {
         const subjects = [student.blokk1, student.blokk2, student.blokk3, student.blokk4]

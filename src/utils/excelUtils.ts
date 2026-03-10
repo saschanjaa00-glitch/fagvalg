@@ -1,5 +1,14 @@
-import * as XLSX from 'xlsx';
 import { mapSubjectToCode } from './subjectCodeMapping';
+
+let xlsxModulePromise: Promise<typeof import('xlsx')> | null = null;
+
+export const loadXlsx = async () => {
+  if (!xlsxModulePromise) {
+    xlsxModulePromise = import('xlsx');
+  }
+
+  return xlsxModulePromise;
+};
 
 export interface ParsedFile {
   id: string;
@@ -9,6 +18,8 @@ export interface ParsedFile {
 }
 
 export const parseExcelFile = async (file: File): Promise<ParsedFile> => {
+  const XLSX = await loadXlsx();
+
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     
@@ -329,15 +340,97 @@ export const tallySubjects = (mergedData: StandardField[]): SubjectCount[] => {
     .sort((a, b) => a.subject.localeCompare(b.subject));
 };
 
-// Export merged data to Excel file
-export const exportToExcel = (mergedData: StandardField[], filename: string = 'merged_students.xlsx') => {
+const windows1252Map = new Map<number, number>([
+  [0x20AC, 0x80],
+  [0x201A, 0x82],
+  [0x0192, 0x83],
+  [0x201E, 0x84],
+  [0x2026, 0x85],
+  [0x2020, 0x86],
+  [0x2021, 0x87],
+  [0x02C6, 0x88],
+  [0x2030, 0x89],
+  [0x0160, 0x8A],
+  [0x2039, 0x8B],
+  [0x0152, 0x8C],
+  [0x017D, 0x8E],
+  [0x2018, 0x91],
+  [0x2019, 0x92],
+  [0x201C, 0x93],
+  [0x201D, 0x94],
+  [0x2022, 0x95],
+  [0x2013, 0x96],
+  [0x2014, 0x97],
+  [0x02DC, 0x98],
+  [0x2122, 0x99],
+  [0x0161, 0x9A],
+  [0x203A, 0x9B],
+  [0x0153, 0x9C],
+  [0x017E, 0x9E],
+  [0x0178, 0x9F],
+]);
+
+const encodeWindows1252 = (value: string): Uint8Array => {
+  const bytes: number[] = [];
+
+  for (const character of value) {
+    const codePoint = character.codePointAt(0);
+
+    if (codePoint === undefined) {
+      continue;
+    }
+
+    if (codePoint <= 0x7F || (codePoint >= 0xA0 && codePoint <= 0xFF)) {
+      bytes.push(codePoint);
+      continue;
+    }
+
+    const mappedByte = windows1252Map.get(codePoint);
+    bytes.push(mappedByte ?? 0x3F);
+  }
+
+  return new Uint8Array(bytes);
+};
+
+const getBlockLetter = (blockNumber: number): string => {
+  let result = '';
+  let n = blockNumber;
+
+  while (n > 0) {
+    const remainder = (n - 1) % 26;
+    result = String.fromCharCode(65 + remainder) + result;
+    n = Math.floor((n - 1) / 26);
+  }
+
+  return result;
+};
+
+const mapBlockSubjectsToCodes = (subjectValue: string | null, blockNumber: number): string[] => {
+  if (!subjectValue) {
+    return [];
+  }
+
+  const blockLetter = getBlockLetter(blockNumber);
+  return subjectValue
+    .split(/[,;]/)
+    .map((subject) => subject.trim())
+    .filter((subject) => subject.length > 0)
+    .map((subject) => `${mapSubjectToCode(subject)}${blockLetter}`);
+};
+
+const getCombinedBlockCodes = (row: StandardField): string => {
+  return [row.blokk1, row.blokk2, row.blokk3, row.blokk4]
+    .flatMap((subjectValue, index) => mapBlockSubjectsToCodes(subjectValue, index + 1))
+    .join(',');
+};
+
+export const exportToExcel = async (mergedData: StandardField[], filename: string = 'merged_students.xlsx') => {
+  const XLSX = await loadXlsx();
+
   const exportData = mergedData.map((row) => ({
     'Navn': row.navn || '',
     'Klasse': row.klasse || '',
-    'Blokk 1': row.blokk1 || '',
-    'Blokk 2': row.blokk2 || '',
-    'Blokk 3': row.blokk3 || '',
-    'Blokk 4': row.blokk4 || '',
+    'Blokk': getCombinedBlockCodes(row),
     'Reserve': row.reserve || '',
   }));
   
@@ -349,10 +442,7 @@ export const exportToExcel = (mergedData: StandardField[], filename: string = 'm
   worksheet['!cols'] = [
     { wch: 20 },
     { wch: 12 },
-    { wch: 20 },
-    { wch: 20 },
-    { wch: 20 },
-    { wch: 20 },
+    { wch: 32 },
     { wch: 24 },
   ];
   
@@ -363,32 +453,6 @@ export const exportToExcel = (mergedData: StandardField[], filename: string = 'm
  * Export merged data as a tab-separated text file with student numbers and subject codes
  */
 export const exportToTabText = (mergedData: StandardField[], filename: string = 'merged_students.txt') => {
-  const getBlockLetter = (blockNumber: number): string => {
-    let result = '';
-    let n = blockNumber;
-
-    while (n > 0) {
-      const remainder = (n - 1) % 26;
-      result = String.fromCharCode(65 + remainder) + result;
-      n = Math.floor((n - 1) / 26);
-    }
-
-    return result;
-  };
-
-  const mapBlockSubjects = (subjectValue: string | null, blockNumber: number): string[] => {
-    if (!subjectValue) {
-      return [];
-    }
-
-    const blockLetter = getBlockLetter(blockNumber);
-    return subjectValue
-      .split(/[,;]/)
-      .map((subject) => subject.trim())
-      .filter((subject) => subject.length > 0)
-      .map((subject) => `${mapSubjectToCode(subject)}${blockLetter}`);
-  };
-
   const mapReserveSubjects = (subjectValue: string | null): string => {
     if (!subjectValue) {
       return '';
@@ -408,10 +472,10 @@ export const exportToTabText = (mergedData: StandardField[], filename: string = 
     const navn = row.navn || '';
     const klasse = row.klasse || '';
     const subjects = [
-      ...mapBlockSubjects(row.blokk1, 1),
-      ...mapBlockSubjects(row.blokk2, 2),
-      ...mapBlockSubjects(row.blokk3, 3),
-      ...mapBlockSubjects(row.blokk4, 4),
+      ...mapBlockSubjectsToCodes(row.blokk1, 1),
+      ...mapBlockSubjectsToCodes(row.blokk2, 2),
+      ...mapBlockSubjectsToCodes(row.blokk3, 3),
+      ...mapBlockSubjectsToCodes(row.blokk4, 4),
     ].join(',');
     const reserveSubjects = mapReserveSubjects(row.reserve);
     
@@ -420,9 +484,12 @@ export const exportToTabText = (mergedData: StandardField[], filename: string = 
   
   // Join each row with tabs
   const textContent = rows.map(row => row.join('\t')).join('\n');
-  
+
   // Create a Blob and trigger download
-  const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+  const encodedContent = encodeWindows1252(textContent);
+  const encodedBuffer = new ArrayBuffer(encodedContent.byteLength);
+  new Uint8Array(encodedBuffer).set(encodedContent);
+  const blob = new Blob([encodedBuffer], { type: 'text/plain;charset=windows-1252' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
