@@ -185,7 +185,7 @@ export const ChangeLogView = ({ changeLog, currentStudents, onOpenStudentCard }:
 
       const summaryEntries = Array.from(bySubject.values()).sort((left, right) => {
         return left.subject.localeCompare(right.subject, 'nb', { sensitivity: 'base' });
-      });
+      }).filter((entry) => entry.fromBlokk !== entry.toBlokk);
 
       return {
         ...group,
@@ -193,6 +193,14 @@ export const ChangeLogView = ({ changeLog, currentStudents, onOpenStudentCard }:
       };
     });
   }, [groupedChanges]);
+
+  const visibleGroups = useMemo(() => {
+    if (mode === 'summary') {
+      return groupedSummaries.filter((group) => group.summaryEntries.length > 0);
+    }
+
+    return groupedSummaries;
+  }, [groupedSummaries, mode]);
 
   const formatBlokk = (value: number) => {
     if (value <= 0) {
@@ -251,14 +259,14 @@ export const ChangeLogView = ({ changeLog, currentStudents, onOpenStudentCard }:
   };
 
   const handleExportToWord = () => {
-    if (groupedSummaries.length === 0) {
+    if (visibleGroups.length === 0) {
       return;
     }
 
     try {
       const generatedAt = new Date();
 
-      const studentRows = groupedSummaries.map((group) => {
+      const studentRows = visibleGroups.map((group) => {
         const studentKey = `${group.navn.trim().toLocaleLowerCase('nb')}|${group.klasse.trim().toLocaleLowerCase('nb')}`;
         const currentStudent = studentsById.get(group.studentId) || studentsByNameClass.get(studentKey);
 
@@ -324,6 +332,10 @@ export const ChangeLogView = ({ changeLog, currentStudents, onOpenStudentCard }:
     return <div className={styles.empty}>Ingen endringer registrert enda.</div>;
   }
 
+  if (visibleGroups.length === 0) {
+    return <div className={styles.empty}>Ingen oppsummerte endringer registrert.</div>;
+  }
+
   return (
     <div className={styles.wrapper}>
       <div className={styles.topBar}>
@@ -348,7 +360,7 @@ export const ChangeLogView = ({ changeLog, currentStudents, onOpenStudentCard }:
         </button>
       </div>
 
-      {groupedSummaries.map((group) => (
+      {visibleGroups.map((group) => (
         <section key={group.studentId} className={styles.studentBlock}>
           <h4 className={styles.studentHeader}>
             {onOpenStudentCard ? (
