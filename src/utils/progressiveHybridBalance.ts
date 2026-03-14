@@ -119,6 +119,7 @@ export interface BalancingConfig {
   maxLookaheadAttempts: number;
   maxDepth2Chains: number;
   classBlockRestrictions: ClassBlockRestrictions;
+  excludedSubjects: string[];
   lockedAssignmentKeys: string[];
 }
 
@@ -220,6 +221,7 @@ export const DEFAULT_BALANCING_CONFIG: BalancingConfig = {
   maxLookaheadAttempts: 180,
   maxDepth2Chains: 50,
   classBlockRestrictions: DEFAULT_CLASS_BLOCK_RESTRICTIONS,
+  excludedSubjects: [],
   lockedAssignmentKeys: [],
 };
 
@@ -241,6 +243,28 @@ const getBlokkKey = (block: BlockNumber): BlokkKey => {
 };
 
 const normalizeSubject = (value: string): string => value.trim().toLocaleLowerCase('nb');
+
+const toExcludedSubjectSet = (subjects: string[]): Set<string> => {
+  return new Set(subjects.map((subject) => normalizeSubject(subject)).filter((subject) => subject.length > 0));
+};
+
+const isExcludedSubjectName = (subjectName: string, excludedSubjects: Set<string>): boolean => {
+  return excludedSubjects.has(normalizeSubject(subjectName));
+};
+
+const isExcludedSubjectCode = (state: InternalState, subjectCode: string, excludedSubjects: Set<string>): boolean => {
+  const subjectName = state.groupsBySubject.get(subjectCode)?.[0]?.subjectName
+    || Array.from(state.students.values())
+      .flatMap((student) => student.assignments)
+      .find((assignment) => assignment.subjectCode === subjectCode)?.subjectName
+    || subjectCode;
+
+  return isExcludedSubjectName(subjectName, excludedSubjects);
+};
+
+const isFreeRedistributionMove = (move: MoveRecord): boolean => {
+  return move.fromBlock === move.toBlock;
+};
 
 const inferStudentId = (row: StandardField, index: number): string => {
   return row.studentId || `${row.navn || 'ukjent'}:${row.klasse || 'ukjent'}:${index}`;
@@ -633,17 +657,23 @@ const computeSubjectImbalanceRaw = (sizes: number[]): number => {
   return penalty;
 };
 
-const computeOvercapSeatCount = (state: InternalState): number => {
+const computeOvercapSeatCountForExcluded = (state: InternalState, excludedSubjects: Set<string>): number => {
   let seatCount = 0;
   state.groups.forEach((group) => {
+    if (isExcludedSubjectName(group.subjectName, excludedSubjects)) {
+      return;
+    }
     seatCount += Math.max(0, group.size - group.capacity);
   });
   return seatCount;
 };
 
-const computeOvercapRaw = (state: InternalState): number => {
+const computeOvercapRaw = (state: InternalState, excludedSubjects: Set<string>): number => {
   let overcapRaw = 0;
   state.groups.forEach((group) => {
+    if (isExcludedSubjectName(group.subjectName, excludedSubjects)) {
+      return;
+    }
     const excess = Math.max(0, group.size - group.capacity);
     overcapRaw += excess * excess;
   });
@@ -653,15 +683,20 @@ const computeOvercapRaw = (state: InternalState): number => {
 export const computeScore = (
   state: InternalState,
   weights: BalancingWeights,
-  moveRecords: MoveRecord[]
+  moveRecords: MoveRecord[],
+  excludedSubjects: Set<string> = new Set<string>()
 ): ScoreBreakdown => {
-  const overcapRaw = computeOvercapRaw(state);
+  const overcapRaw = computeOvercapRaw(state, excludedSubjects);
 
   const sizesBySubject = getSubjectSizes(state);
   let imbalanceRaw = 0;
   let peakRaw = 0;
 
-  sizesBySubject.forEach((sizes) => {
+  sizesBySubject.forEach((sizes, subjectCode) => {
+    if (isExcludedSubjectCode(state, subjectCode, excludedSubjects)) {
+      return;
+    }
+
     if (sizes.length === 0) {
       return;
     }
@@ -672,12 +707,43 @@ export const computeScore = (
     peakRaw += weights.beta * peak * peak;
   });
 
-  const collisionRaw = Array.from(state.students.values())
-    .reduce((sum, student) => sum + getCollisionCount(student), 0);
+  const collisionRaw = Array.from(state.students.values()).reduce((sum, student) => {
+    const includedAssignments = student.assignments.filter((assignment) => {
+      return !isExcludedSubjectName(assignment.subjectName, excludedSubjects);
+    });
 
-  const movesRaw = moveRecords.length;
-  const repeatedRaw = Array.from(state.studentMoveCounts.values())
-    .reduce((sum, value) => sum + Math.max(0, value - 1), 0);
+    if (includedAssignments.length === student.assignments.length) {
+      return sum + getCollisionCount(student);
+    }
+
+    const byBlock = new Map<BlockNumber, number>();
+    includedAssignments.forEach((assignment) => {
+      byBlock.set(assignment.block, (byBlock.get(assignment.block) || 0) + 1);
+    });
+
+    let collisions = 0;
+    byBlock.forEach((count) => {
+      if (count > 1) {
+        collisions += count - 1;
+      }
+    });
+
+    return sum + collisions;
+  }, 0);
+
+  const includedMoveRecords = moveRecords.filter((move) => {
+    if (isExcludedSubjectName(move.subjectName, excludedSubjects)) {
+      return false;
+    }
+
+    return !isFreeRedistributionMove(move);
+  });
+  const movesRaw = includedMoveRecords.length;
+  const repeatCounts = new Map<string, number>();
+  includedMoveRecords.forEach((move) => {
+    repeatCounts.set(move.studentId, (repeatCounts.get(move.studentId) || 0) + 1);
+  });
+  const repeatedRaw = Array.from(repeatCounts.values()).reduce((sum, value) => sum + Math.max(0, value - 1), 0);
 
   const overcap = weights.overcapA * overcapRaw;
   const imbalance = weights.imbalanceB * imbalanceRaw;
@@ -720,12 +786,14 @@ const moveIsFeasible = (
     return false;
   }
 
-  const hasOtherSubjectInTarget = student.assignments.some((item) => {
-    return item.block === move.toBlock && item.subjectCode !== move.subjectCode;
-  });
+  if (move.toBlock !== move.fromBlock) {
+    const hasOtherSubjectInTarget = student.assignments.some((item) => {
+      return item.block === move.toBlock && item.subjectCode !== move.subjectCode;
+    });
 
-  if (hasOtherSubjectInTarget) {
-    return false;
+    if (hasOtherSubjectInTarget) {
+      return false;
+    }
   }
 
   const targetGroup = Array.from(state.groups.values()).find((group) => group.groupId === move.toGroupId);
@@ -823,6 +891,20 @@ const pickRotationTargets = (
   restrictions: ClassBlockRestrictions
 ): RotationGroupTarget[] | null => {
   const provisionalGroupDelta = new Map<string, number>();
+  const outgoingBlocks = new Set(steps.map((step) => step.fromBlock));
+  const incomingBlocks = new Set(steps.map((step) => step.toBlock));
+
+  const occupiedBlocksAfterOutgoing = new Set(
+    student.assignments
+      .filter((assignment) => !outgoingBlocks.has(assignment.block))
+      .map((assignment) => assignment.block)
+  );
+
+  for (const block of incomingBlocks) {
+    if (occupiedBlocksAfterOutgoing.has(block)) {
+      return null;
+    }
+  }
 
   steps.forEach((step) => {
     const sourceGroup = Array.from(state.groups.values()).find((group) => group.groupId === step.fromGroupId);
@@ -949,14 +1031,15 @@ const estimateMoveDelta = (
     return Number.POSITIVE_INFINITY;
   }
 
-  const before = computeScore(state, config.weights, state.history).total;
+  const excludedSubjects = toExcludedSubjectSet(config.excludedSubjects);
+  const before = computeScore(state, config.weights, state.history, excludedSubjects).total;
   const cloned = cloneState(state);
   const applied = applyCandidateMoveToState(cloned, move, reason, 0, offset, config.classBlockRestrictions);
   if (!applied) {
     return Number.POSITIVE_INFINITY;
   }
 
-  const after = computeScore(cloned, config.weights, cloned.history).total;
+  const after = computeScore(cloned, config.weights, cloned.history, excludedSubjects).total;
   return after - before;
 };
 
@@ -966,10 +1049,15 @@ export const buildFlowNetwork = (
   offset: number
 ): FlowNetwork => {
   const candidates: CandidateMove[] = [];
+  const excludedSubjects = toExcludedSubjectSet(config.excludedSubjects);
 
   state.students.forEach((student) => {
     student.assignments.forEach((assignment) => {
       if (assignment.locked) {
+        return;
+      }
+
+      if (isExcludedSubjectName(assignment.subjectName, excludedSubjects)) {
         return;
       }
 
@@ -1138,8 +1226,9 @@ const buildRotationCandidate = (
     return null;
   }
 
-  const before = computeScore(state, config.weights, state.history).total;
-  const after = computeScore(snapshot, config.weights, snapshot.history).total;
+  const excludedSubjects = toExcludedSubjectSet(config.excludedSubjects);
+  const before = computeScore(state, config.weights, state.history, excludedSubjects).total;
+  const after = computeScore(snapshot, config.weights, snapshot.history, excludedSubjects).total;
   const delta = after - before;
   if (!Number.isFinite(delta) || delta >= -config.epsilon) {
     return null;
@@ -1316,8 +1405,9 @@ const repairOvercapacity = (
   while (improving) {
     improving = false;
 
-    const baselineSeatCount = computeOvercapSeatCount(state);
-    const baselineRaw = computeOvercapRaw(state);
+    const excludedSubjects = toExcludedSubjectSet(config.excludedSubjects);
+    const baselineSeatCount = computeOvercapSeatCountForExcluded(state, excludedSubjects);
+    const baselineRaw = computeOvercapRaw(state, excludedSubjects);
 
     if (baselineSeatCount <= 0) {
       break;
@@ -1332,8 +1422,8 @@ const repairOvercapacity = (
           return null;
         }
 
-        const nextSeatCount = computeOvercapSeatCount(snapshot);
-        const nextRaw = computeOvercapRaw(snapshot);
+        const nextSeatCount = computeOvercapSeatCountForExcluded(snapshot, excludedSubjects);
+        const nextRaw = computeOvercapRaw(snapshot, excludedSubjects);
         const strictImprovement = baselineRaw - nextRaw;
         const seatImprovement = baselineSeatCount - nextSeatCount;
 
@@ -1426,7 +1516,8 @@ export const tryLookaheadChain = (
     }
 
     attempts += 1;
-    const baseline = computeScore(state, config.weights, state.history).total;
+    const excludedSubjects = toExcludedSubjectSet(config.excludedSubjects);
+    const baseline = computeScore(state, config.weights, state.history, excludedSubjects).total;
     const snapshot = cloneState(state);
 
     if (!moveIsFeasible(snapshot, first, offset, config.classBlockRestrictions)) {
@@ -1457,7 +1548,7 @@ export const tryLookaheadChain = (
       .filter((candidate) => `${candidate.studentId}|${candidate.subjectCode}` !== `${first.studentId}|${first.subjectCode}`);
 
     if (depth === 1) {
-      const after = computeScore(snapshot, config.weights, snapshot.history).total;
+      const after = computeScore(snapshot, config.weights, snapshot.history, excludedSubjects).total;
       if (after <= baseline - config.epsilon) {
         state.students = snapshot.students;
         state.groups = snapshot.groups;
@@ -1486,7 +1577,7 @@ export const tryLookaheadChain = (
           continue;
         }
 
-        const after = computeScore(snapshot, config.weights, snapshot.history).total;
+        const after = computeScore(snapshot, config.weights, snapshot.history, excludedSubjects).total;
         if (after <= baseline - config.epsilon) {
           state.students = snapshot.students;
           state.groups = snapshot.groups;
@@ -1725,45 +1816,59 @@ const updateSubjectSettingsAssignments = (
       groupStudentAssignments: {},
     };
 
-    const hasPersistedGroups = Array.isArray(existing.groups) && existing.groups.length > 0;
-    if (hasPersistedGroups) {
-      return;
-    }
+    const finalizedAssignments: Record<string, string> = {};
+    state.students.forEach((student) => {
+      student.assignments.forEach((assignment) => {
+        if (assignment.subjectCode !== subjectCode) {
+          return;
+        }
 
-    const materializedGroups = [...groupsInState]
-      .sort((left, right) => {
-        if (left.block !== right.block) {
-          return left.block - right.block;
-        }
-        if (left.groupCode !== right.groupCode) {
-          return left.groupCode.localeCompare(right.groupCode, 'nb', { sensitivity: 'base' });
-        }
-        return left.groupId.localeCompare(right.groupId, 'nb', { sensitivity: 'base' });
-      })
-      .map((group) => ({
-        id: group.groupId,
-        blokk: `Blokk ${group.block}` as `Blokk ${BlockNumber}`,
-        sourceBlokk: `Blokk ${group.block}` as `Blokk ${BlockNumber}`,
-        enabled: true,
-        max: group.capacity,
-        createdAt: `balanced-${subjectCode}-${group.groupId}`,
-      }));
+        finalizedAssignments[student.id] = assignment.groupId;
+      });
+    });
+
+    const hasPersistedGroups = Array.isArray(existing.groups) && existing.groups.length > 0;
+    const materializedGroups = hasPersistedGroups
+      ? [...(existing.groups || [])]
+      : [...groupsInState]
+        .sort((left, right) => {
+          if (left.block !== right.block) {
+            return left.block - right.block;
+          }
+          if (left.groupCode !== right.groupCode) {
+            return left.groupCode.localeCompare(right.groupCode, 'nb', { sensitivity: 'base' });
+          }
+          return left.groupId.localeCompare(right.groupId, 'nb', { sensitivity: 'base' });
+        })
+        .map((group) => ({
+          id: group.groupId,
+          blokk: `Blokk ${group.block}` as `Blokk ${BlockNumber}`,
+          sourceBlokk: `Blokk ${group.block}` as `Blokk ${BlockNumber}`,
+          enabled: true,
+          max: group.capacity,
+          createdAt: `balanced-${subjectCode}-${group.groupId}`,
+        }));
 
     nextSettings[subjectName] = {
       ...existing,
       defaultMax: existing.defaultMax || Math.max(...materializedGroups.map((group) => group.max)),
       groups: materializedGroups,
+      groupStudentAssignments: finalizedAssignments,
     };
   });
 
   return nextSettings;
 };
 
-const collectSubjectMetrics = (state: InternalState): SubjectMetrics[] => {
+const collectSubjectMetrics = (state: InternalState, excludedSubjects: Set<string> = new Set<string>()): SubjectMetrics[] => {
   const metrics: SubjectMetrics[] = [];
 
   state.groupsBySubject.forEach((groups) => {
     if (groups.length === 0) {
+      return;
+    }
+
+    if (isExcludedSubjectName(groups[0].subjectName, excludedSubjects)) {
       return;
     }
 
@@ -1794,6 +1899,7 @@ const mergeConfig = (config?: Partial<BalancingConfig>): BalancingConfig => {
       ...DEFAULT_BALANCING_CONFIG.classBlockRestrictions,
       ...(config?.classBlockRestrictions || {}),
     },
+    excludedSubjects: config?.excludedSubjects || DEFAULT_BALANCING_CONFIG.excludedSubjects,
     lockedAssignmentKeys: config?.lockedAssignmentKeys || DEFAULT_BALANCING_CONFIG.lockedAssignmentKeys,
   };
 };
@@ -1804,12 +1910,13 @@ export const progressiveHybridBalance = (
   config?: Partial<BalancingConfig>
 ): ProgressiveHybridBalanceResult => {
   const mergedConfig = mergeConfig(config);
+  const excludedSubjects = toExcludedSubjectSet(mergedConfig.excludedSubjects);
   let state = buildState(rows, subjectSettingsByName, mergedConfig);
   let bestStrictState = cloneState(state);
-  const beforeOvercapSeatCount = computeOvercapSeatCount(state);
+  const beforeOvercapSeatCount = computeOvercapSeatCountForExcluded(state, excludedSubjects);
 
-  const beforeScore = computeScore(state, mergedConfig.weights, state.history);
-  const subjectMetricsBefore = collectSubjectMetrics(state);
+  const beforeScore = computeScore(state, mergedConfig.weights, state.history, excludedSubjects);
+  const subjectMetricsBefore = collectSubjectMetrics(state, excludedSubjects);
 
   let passesRun = 0;
   let lookaheadAttempts = 0;
@@ -1860,8 +1967,8 @@ export const progressiveHybridBalance = (
   state = cloneState(bestStrictState);
 
   const collisionRepair = repairCollisions(state, mergedConfig);
-  const afterScore = computeScore(state, mergedConfig.weights, state.history);
-  const subjectMetricsAfter = collectSubjectMetrics(state);
+  const afterScore = computeScore(state, mergedConfig.weights, state.history, excludedSubjects);
+  const subjectMetricsAfter = collectSubjectMetrics(state, excludedSubjects);
 
   const updatedData = applyMovesToRows(rows, state.history);
   const updatedSubjectSettingsByName = updateSubjectSettingsAssignments(subjectSettingsByName, state.history, state);
@@ -1873,7 +1980,7 @@ export const progressiveHybridBalance = (
     beforeScore,
     afterScore,
     beforeOvercapSeatCount,
-    afterOvercapSeatCount: computeOvercapSeatCount(state),
+    afterOvercapSeatCount: computeOvercapSeatCountForExcluded(state, excludedSubjects),
     subjectMetricsBefore,
     subjectMetricsAfter,
     moveCount: state.history.length,

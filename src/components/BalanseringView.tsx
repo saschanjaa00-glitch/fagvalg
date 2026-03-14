@@ -23,6 +23,22 @@ interface BalanseringViewProps {
 
 const DEFAULT_CLASS_LEVELS = ['VG1', 'VG2', 'VG3'];
 const FIXED_COLLISION_WEIGHT = DEFAULT_BALANCING_CONFIG.weights.collisionD;
+const SETTING_DESCRIPTIONS = {
+  overcapA: 'Straffer grupper som ligger over maks kapasitet. Høyere verdi gjør at overfylte grupper prioriteres hardere.',
+  imbalanceB: 'Straffer skjev fordeling mellom grupper i samme fag. Høyere verdi gir jevnere gruppestørrelser.',
+  peakC: 'Straffer spesielt store toppgrupper. Høyere verdi presser ned de største gruppene raskere.',
+  collisionD: 'Straff for blokkollisjon. Denne er låst svært høyt slik at kollisjoner i praksis forbys.',
+  movesE: 'Straffer antall flytt som faktisk endrer blokk. Omfordeling mellom grupper i samme blokk er gratis.',
+  repeatF: 'Straffer å flytte samme elev flere ganger når flyttene endrer blokk. Omfordeling innen samme blokk er gratis.',
+  alpha: 'Øker hvor mye store grupper påvirker ubalansestraffen.',
+  beta: 'Øker hvor hardt de største gruppene teller i topptrykk-beregningen.',
+  maxRelaxation: 'Starter balanseringen så mange plasser under virkelig maks før den gradvis nærmer seg faktisk maks.',
+  maxPassMillis: 'Omtrentlig tidsbudsjett per kapasitetsnivå i balanseringen.',
+  maxLookaheadAttempts: 'Hvor mange lookahead-forsøk motoren kan bruke for å finne kjeder av flytt.',
+  maxDepth2Chains: 'Maks antall dypere to-stegs kjeder som prøves i lookahead.',
+  restrictions: 'Klassebegrensninger styrer hvilke blokker hvert trinn har lov til å bruke.',
+  excludedSubjects: 'Utelukkede fag blir ikke flyttet og teller ikke i balanseringskostnader, men de opptar fortsatt blokker og vises ellers i appen.',
+} as const;
 
 const formatNumber = (value: number): string => {
   return Number.isFinite(value) ? value.toFixed(2) : String(value);
@@ -31,6 +47,17 @@ const formatNumber = (value: number): string => {
 const parseInputNumber = (value: string, fallback: number): number => {
   const parsed = Number.parseFloat(value);
   return Number.isNaN(parsed) ? fallback : parsed;
+};
+
+const parseSubjects = (value: string | null): string[] => {
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(/[,;]/)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
 };
 
 const normalizeRestrictions = (input: ClassBlockRestrictions): ClassBlockRestrictions => {
@@ -56,10 +83,24 @@ export const BalanseringView = ({
   const [maxPassMillis, setMaxPassMillis] = useState(String(DEFAULT_BALANCING_CONFIG.maxPassMillis));
   const [maxLookaheadAttempts, setMaxLookaheadAttempts] = useState(String(DEFAULT_BALANCING_CONFIG.maxLookaheadAttempts));
   const [maxDepth2Chains, setMaxDepth2Chains] = useState(String(DEFAULT_BALANCING_CONFIG.maxDepth2Chains));
+  const [excludedSubjects, setExcludedSubjects] = useState<string[]>(DEFAULT_BALANCING_CONFIG.excludedSubjects);
   const [statusMessage, setStatusMessage] = useState('');
   const [lastResult, setLastResult] = useState<ProgressiveHybridBalanceResult | null>(null);
 
   const effectiveRestrictions = useMemo(() => normalizeRestrictions(restrictions), [restrictions]);
+  const availableSubjects = useMemo(() => {
+    const subjects = new Set<string>();
+
+    mergedData.forEach((row) => {
+      [row.blokk1, row.blokk2, row.blokk3, row.blokk4].forEach((value) => {
+        parseSubjects(value).forEach((subject) => subjects.add(subject));
+      });
+    });
+
+    Object.keys(subjectSettingsByName).forEach((subject) => subjects.add(subject));
+
+    return Array.from(subjects).sort((left, right) => left.localeCompare(right, 'nb', { sensitivity: 'base' }));
+  }, [mergedData, subjectSettingsByName]);
 
   const runBalancing = () => {
     if (mergedData.length === 0) {
@@ -80,6 +121,7 @@ export const BalanseringView = ({
       ),
       maxDepth2Chains: Math.max(0, Math.floor(parseInputNumber(maxDepth2Chains, DEFAULT_BALANCING_CONFIG.maxDepth2Chains))),
       classBlockRestrictions: effectiveRestrictions,
+      excludedSubjects,
     };
 
     const result = progressiveHybridBalance(mergedData, subjectSettingsByName, config);
@@ -114,6 +156,20 @@ export const BalanseringView = ({
     onRestrictionsChange({ ...DEFAULT_CLASS_BLOCK_RESTRICTIONS });
   };
 
+  const toggleExcludedSubject = (subject: string, excluded: boolean) => {
+    setExcludedSubjects((prev) => {
+      if (excluded) {
+        return [...prev, subject].sort((left, right) => left.localeCompare(right, 'nb', { sensitivity: 'base' }));
+      }
+
+      return prev.filter((item) => item !== subject);
+    });
+  };
+
+  const clearExcludedSubjects = () => {
+    setExcludedSubjects([]);
+  };
+
   return (
     <div className={styles.wrapper}>
       <section className={styles.card}>
@@ -125,7 +181,9 @@ export const BalanseringView = ({
 
         <div className={styles.constraintsBox}>
           <h4>Klassebegrensninger per blokk</h4>
-          <p>Standard: VG2 kan ikke i Blokk 4, VG3 kan ikke i Blokk 1. Kryss av hva som er tillatt.</p>
+          <p title={SETTING_DESCRIPTIONS.restrictions}>
+            Standard: VG2 kan ikke i Blokk 4, VG3 kan ikke i Blokk 1. Kryss av hva som er tillatt.
+          </p>
           <table className={styles.restrictionTable}>
             <thead>
               <tr>
@@ -173,6 +231,7 @@ export const BalanseringView = ({
               type="number"
               value={weights.overcapA}
               step="0.1"
+              title={SETTING_DESCRIPTIONS.overcapA}
               onChange={(event) =>
                 setWeights((prev) => ({ ...prev, overcapA: parseInputNumber(event.target.value, prev.overcapA) }))
               }
@@ -184,6 +243,7 @@ export const BalanseringView = ({
               type="number"
               value={weights.imbalanceB}
               step="0.1"
+              title={SETTING_DESCRIPTIONS.imbalanceB}
               onChange={(event) =>
                 setWeights((prev) => ({ ...prev, imbalanceB: parseInputNumber(event.target.value, prev.imbalanceB) }))
               }
@@ -195,6 +255,7 @@ export const BalanseringView = ({
               type="number"
               value={weights.peakC}
               step="0.1"
+              title={SETTING_DESCRIPTIONS.peakC}
               onChange={(event) =>
                 setWeights((prev) => ({ ...prev, peakC: parseInputNumber(event.target.value, prev.peakC) }))
               }
@@ -207,7 +268,7 @@ export const BalanseringView = ({
               value={FIXED_COLLISION_WEIGHT}
               step="1000"
               disabled
-              title="Låst: kollisjon er hardt forbudt i balanseringen"
+              title={SETTING_DESCRIPTIONS.collisionD}
             />
           </label>
           <label>
@@ -216,6 +277,7 @@ export const BalanseringView = ({
               type="number"
               value={weights.movesE}
               step="0.1"
+              title={SETTING_DESCRIPTIONS.movesE}
               onChange={(event) =>
                 setWeights((prev) => ({ ...prev, movesE: parseInputNumber(event.target.value, prev.movesE) }))
               }
@@ -227,6 +289,7 @@ export const BalanseringView = ({
               type="number"
               value={weights.repeatF}
               step="0.1"
+              title={SETTING_DESCRIPTIONS.repeatF}
               onChange={(event) =>
                 setWeights((prev) => ({ ...prev, repeatF: parseInputNumber(event.target.value, prev.repeatF) }))
               }
@@ -238,6 +301,7 @@ export const BalanseringView = ({
               type="number"
               value={weights.alpha}
               step="0.01"
+              title={SETTING_DESCRIPTIONS.alpha}
               onChange={(event) =>
                 setWeights((prev) => ({ ...prev, alpha: parseInputNumber(event.target.value, prev.alpha) }))
               }
@@ -249,32 +313,82 @@ export const BalanseringView = ({
               type="number"
               value={weights.beta}
               step="0.1"
+              title={SETTING_DESCRIPTIONS.beta}
               onChange={(event) =>
                 setWeights((prev) => ({ ...prev, beta: parseInputNumber(event.target.value, prev.beta) }))
               }
             />
           </label>
           <label>
-            Kapasitets-relaksasjon
-            <input type="number" value={maxRelaxation} onChange={(event) => setMaxRelaxation(event.target.value)} />
+            Start under maks
+            <input
+              type="number"
+              value={maxRelaxation}
+              title={SETTING_DESCRIPTIONS.maxRelaxation}
+              onChange={(event) => setMaxRelaxation(event.target.value)}
+            />
           </label>
           <label>
             Maks tid per pass (ms)
-            <input type="number" value={maxPassMillis} onChange={(event) => setMaxPassMillis(event.target.value)} />
+            <input
+              type="number"
+              value={maxPassMillis}
+              title={SETTING_DESCRIPTIONS.maxPassMillis}
+              onChange={(event) => setMaxPassMillis(event.target.value)}
+            />
           </label>
           <label>
             Lookahead-forsok
             <input
               type="number"
               value={maxLookaheadAttempts}
+              title={SETTING_DESCRIPTIONS.maxLookaheadAttempts}
               onChange={(event) => setMaxLookaheadAttempts(event.target.value)}
             />
           </label>
           <label>
             Max depth-2 kjeder
-            <input type="number" value={maxDepth2Chains} onChange={(event) => setMaxDepth2Chains(event.target.value)} />
+            <input
+              type="number"
+              value={maxDepth2Chains}
+              title={SETTING_DESCRIPTIONS.maxDepth2Chains}
+              onChange={(event) => setMaxDepth2Chains(event.target.value)}
+            />
           </label>
         </div>
+
+        {availableSubjects.length > 0 && (
+          <div className={styles.constraintsBox}>
+            <div className={styles.subjectExclusionHeader}>
+              <div>
+                <h4>Utelukk fag fra balansering</h4>
+                <p title={SETTING_DESCRIPTIONS.excludedSubjects}>
+                  Utelukkede fag blir ikke flyttet og teller ikke med i score, overkapasitet eller fagmetrikker.
+                </p>
+              </div>
+              <button type="button" className={styles.secondaryBtn} onClick={clearExcludedSubjects}>
+                Nullstill fagvalg
+              </button>
+            </div>
+
+            <div className={styles.subjectExclusionList}>
+              {availableSubjects.map((subject) => {
+                const isExcluded = excludedSubjects.includes(subject);
+                return (
+                  <label key={subject} className={styles.subjectToggle}>
+                    <input
+                      type="checkbox"
+                      checked={isExcluded}
+                      title={SETTING_DESCRIPTIONS.excludedSubjects}
+                      onChange={(event) => toggleExcludedSubject(subject, event.target.checked)}
+                    />
+                    <span>{subject}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className={styles.actionRow}>
           <button type="button" className={styles.primaryBtn} onClick={runBalancing}>
@@ -282,6 +396,24 @@ export const BalanseringView = ({
           </button>
           {statusMessage && <span className={styles.status}>{statusMessage}</span>}
         </div>
+
+        {lastResult && (
+          <div className={styles.runStatusBox}>
+            <div className={styles.runStatusTitle}>Siste kjoring</div>
+            <div className={styles.runStatusGrid}>
+              <div>Pass: {lastResult.diagnostics.passesRun}</div>
+              <div>Flytt: {lastResult.diagnostics.moveCount}</div>
+              <div>Over maks for: {lastResult.diagnostics.beforeOvercapSeatCount}</div>
+              <div>Over maks etter: {lastResult.diagnostics.afterOvercapSeatCount}</div>
+              <div>Unike elever: {lastResult.diagnostics.uniqueStudentsMoved}</div>
+              <div>Lookahead forsok: {lastResult.diagnostics.lookaheadAttempts}</div>
+              <div>Lookahead suksess: {lastResult.diagnostics.lookaheadSuccess}</div>
+              <div>Lookahead rollback: {lastResult.diagnostics.lookaheadRollback}</div>
+              <div>Repeterte flytt: {lastResult.diagnostics.repeatedMoveCount}</div>
+              <div>Uloselige kollisjoner: {lastResult.diagnostics.unresolvedCollisions.length}</div>
+            </div>
+          </div>
+        )}
       </section>
 
       {lastResult && (
@@ -290,6 +422,8 @@ export const BalanseringView = ({
           <div className={styles.diagnosticsGrid}>
             <div>Score for: {formatNumber(lastResult.diagnostics.beforeScore.total)}</div>
             <div>Score etter: {formatNumber(lastResult.diagnostics.afterScore.total)}</div>
+            <div>Over maks for: {lastResult.diagnostics.beforeOvercapSeatCount}</div>
+            <div>Over maks etter: {lastResult.diagnostics.afterOvercapSeatCount}</div>
             <div>Flytt: {lastResult.diagnostics.moveCount}</div>
             <div>Unike elever: {lastResult.diagnostics.uniqueStudentsMoved}</div>
             <div>Repeterte flytt: {lastResult.diagnostics.repeatedMoveCount}</div>
