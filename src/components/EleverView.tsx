@@ -883,7 +883,7 @@ export const EleverView = ({
               <div className={styles.studentHeader}>
                 <div>
                   <h3>{selectedStudentEntry.student.navn || 'Ukjent elev'}</h3>
-                  <p>{selectedStudentEntry.student.klasse || 'Ingen klasse'} | {selectedStudentEntry.studentId}</p>
+                  <p>{selectedStudentEntry.student.klasse || 'Ingen klasse'}</p>
                 </div>
               </div>
 
