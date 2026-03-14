@@ -4,6 +4,12 @@ import type { SubjectSettingsByName } from './SubjectTally';
 import styles from './EleverView.module.css';
 
 type StudentFilter = 'all' | 'missing' | 'overloaded' | 'collisions' | 'duplicates';
+type WarningType = 'missing' | 'overloaded';
+
+interface WarningIgnoreEntry {
+  comment: string;
+  ignoredAt: string;
+}
 
 interface EleverViewProps {
   data: StandardField[];
@@ -11,6 +17,9 @@ interface EleverViewProps {
   subjectOptions: string[];
   subjectSettingsByName: SubjectSettingsByName;
   onSaveSubjectSettingsByName: (values: SubjectSettingsByName) => void;
+  warningIgnoresByStudentAndType: Record<string, Partial<Record<WarningType, WarningIgnoreEntry>>>;
+  onSaveWarningIgnore: (studentId: string, type: WarningType, comment: string) => void;
+  onRemoveWarningIgnore: (studentId: string, type: WarningType) => void;
   changeLog: StudentAssignmentChange[];
   onStudentDataUpdate: (updatedData: StandardField[], changes: StudentAssignmentChange[]) => void;
 }
@@ -165,6 +174,9 @@ export const EleverView = ({
   subjectOptions,
   subjectSettingsByName,
   onSaveSubjectSettingsByName,
+  warningIgnoresByStudentAndType,
+  onSaveWarningIgnore,
+  onRemoveWarningIgnore,
   changeLog,
   onStudentDataUpdate,
 }: EleverViewProps) => {
@@ -173,6 +185,7 @@ export const EleverView = ({
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [subjectToAdd, setSubjectToAdd] = useState('');
   const [blokkToAdd, setBlokkToAdd] = useState('');
+  const [warningIgnoreDraftByType, setWarningIgnoreDraftByType] = useState<Partial<Record<WarningType, string>>>({});
   const [statusMessage, setStatusMessage] = useState('');
   const [editAssignment, setEditAssignment] = useState<EditAssignmentState | null>(null);
 
@@ -180,23 +193,27 @@ export const EleverView = ({
     return data.map((student, index) => {
       const assignments = extractAssignments(student, blokkCount);
       const studentId = getStudentId(student, index);
+      const missing = hasMissingSubjects(student, blokkCount);
+      const overloaded = hasTooManySubjects(student, blokkCount);
       return {
         student,
         index,
         studentId,
         assignments,
-        missing: hasMissingSubjects(student, blokkCount),
-        overloaded: hasTooManySubjects(student, blokkCount),
+        missing,
+        overloaded,
+        missingIgnored: missing && !!warningIgnoresByStudentAndType[studentId]?.missing,
+        overloadedIgnored: overloaded && !!warningIgnoresByStudentAndType[studentId]?.overloaded,
         collisions: hasBlokkCollisions(student, blokkCount),
         duplicates: hasDuplicateSubjects(student, blokkCount),
       };
     });
-  }, [data, blokkCount]);
+  }, [data, blokkCount, warningIgnoresByStudentAndType]);
 
   const counts = useMemo(() => {
     return {
-      missing: studentSummaries.filter((entry) => entry.missing).length,
-      overloaded: studentSummaries.filter((entry) => entry.overloaded).length,
+      missing: studentSummaries.filter((entry) => entry.missing && !entry.missingIgnored).length,
+      overloaded: studentSummaries.filter((entry) => entry.overloaded && !entry.overloadedIgnored).length,
       collisions: studentSummaries.filter((entry) => entry.collisions).length,
       duplicates: studentSummaries.filter((entry) => entry.duplicates).length,
     };
@@ -209,10 +226,10 @@ export const EleverView = ({
       }
 
       if (activeFilter === 'missing') {
-        return entry.missing;
+        return entry.missing && !entry.missingIgnored;
       }
       if (activeFilter === 'overloaded') {
-        return entry.overloaded;
+        return entry.overloaded && !entry.overloadedIgnored;
       }
       if (activeFilter === 'collisions') {
         return entry.collisions;
@@ -239,6 +256,7 @@ export const EleverView = ({
 
   useEffect(() => {
     setEditAssignment(null);
+    setWarningIgnoreDraftByType({});
   }, [selectedStudentId]);
 
   const getSubjectGroupMetrics = (subject: string): SubjectGroupMetrics => {
@@ -522,6 +540,32 @@ export const EleverView = ({
     return filteredStudents.find((entry) => entry.studentId === selectedStudentId) || null;
   }, [filteredStudents, selectedStudentId]);
 
+  const selectedWarningRows = useMemo(() => {
+    if (!selectedStudentEntry) {
+      return [] as Array<{ type: WarningType; title: string; ignored: WarningIgnoreEntry | null }>;
+    }
+
+    const rows: Array<{ type: WarningType; title: string; ignored: WarningIgnoreEntry | null }> = [];
+
+    if (selectedStudentEntry.missing) {
+      rows.push({
+        type: 'missing',
+        title: 'Færre enn 3 blokkfag',
+        ignored: warningIgnoresByStudentAndType[selectedStudentEntry.studentId]?.missing || null,
+      });
+    }
+
+    if (selectedStudentEntry.overloaded) {
+      rows.push({
+        type: 'overloaded',
+        title: '4+ blokkfag',
+        ignored: warningIgnoresByStudentAndType[selectedStudentEntry.studentId]?.overloaded || null,
+      });
+    }
+
+    return rows;
+  }, [selectedStudentEntry, warningIgnoresByStudentAndType]);
+
   const selectedStudentChanges = useMemo(() => {
     if (!selectedStudentEntry) {
       return [];
@@ -539,6 +583,23 @@ export const EleverView = ({
     window.setTimeout(() => {
       setStatusMessage('');
     }, 2500);
+  };
+
+  const handleSaveWarningIgnore = (type: WarningType) => {
+    if (!selectedStudentEntry) {
+      return;
+    }
+
+    const comment = (warningIgnoreDraftByType[type] || '').trim();
+    if (!comment) {
+      return;
+    }
+
+    onSaveWarningIgnore(selectedStudentEntry.studentId, type, comment);
+    setWarningIgnoreDraftByType((prev) => ({
+      ...prev,
+      [type]: '',
+    }));
   };
 
   const handleRemoveAssignment = (subject: string, blokkNumber: number) => {
@@ -887,6 +948,53 @@ export const EleverView = ({
                   <p>{selectedStudentEntry.student.klasse || 'Ingen klasse'}</p>
                 </div>
               </div>
+
+              {selectedWarningRows.length > 0 && (
+                <div className={styles.warningIgnorePanel}>
+                  {selectedWarningRows.map((warning) => (
+                    <div key={`warning-${warning.type}`} className={styles.warningIgnoreRow}>
+                      <div className={styles.warningIgnoreTitle}>{warning.title}</div>
+                      {warning.ignored ? (
+                        <div className={styles.warningIgnoreControls}>
+                          <span className={styles.warningIgnoredLabel}>Ignorert: {warning.ignored.comment}</span>
+                          <button
+                            type="button"
+                            className={styles.warningIgnoreButton}
+                            onClick={() => onRemoveWarningIgnore(selectedStudentEntry.studentId, warning.type)}
+                          >
+                            Fjern ignorering
+                          </button>
+                        </div>
+                      ) : (
+                        <div className={styles.warningIgnoreControls}>
+                          <input
+                            type="text"
+                            maxLength={140}
+                            className={styles.warningIgnoreInput}
+                            placeholder="Kort kommentar for ignorering"
+                            value={warningIgnoreDraftByType[warning.type] || ''}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setWarningIgnoreDraftByType((prev) => ({
+                                ...prev,
+                                [warning.type]: value,
+                              }));
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className={styles.warningIgnoreButton}
+                            disabled={!(warningIgnoreDraftByType[warning.type] || '').trim()}
+                            onClick={() => handleSaveWarningIgnore(warning.type)}
+                          >
+                            Ignorer
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className={styles.addBar}>
                 <input
