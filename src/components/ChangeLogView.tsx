@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
-import type { StudentAssignmentChange } from '../utils/excelUtils';
+import type { StandardField, StudentAssignmentChange } from '../utils/excelUtils';
 import styles from './ChangeLogView.module.css';
 
 interface ChangeLogViewProps {
   changeLog: StudentAssignmentChange[];
+  currentStudents: StandardField[];
   onOpenStudentCard?: (studentId: string) => void;
 }
 
@@ -22,6 +23,10 @@ interface SummaryEntry {
 }
 
 type LogMode = 'detailed' | 'summary';
+type ChangeType = 'added' | 'removed' | 'moved';
+type BlokkField = 'blokk1' | 'blokk2' | 'blokk3' | 'blokk4' | 'blokk5' | 'blokk6' | 'blokk7' | 'blokk8';
+
+const BLOKK_FIELDS: BlokkField[] = ['blokk1', 'blokk2', 'blokk3', 'blokk4', 'blokk5', 'blokk6', 'blokk7', 'blokk8'];
 
 const formatTimestamp = (iso: string): string => {
   const date = new Date(iso);
@@ -45,8 +50,74 @@ const formatDateForFilename = (value: Date): string => {
   return `${year}-${month}-${day}`;
 };
 
-export const ChangeLogView = ({ changeLog, onOpenStudentCard }: ChangeLogViewProps) => {
+const escapeHtml = (value: string): string => {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+};
+
+const getChangeType = (fromBlokk: number, toBlokk: number): ChangeType => {
+  if (fromBlokk <= 0 && toBlokk > 0) {
+    return 'added';
+  }
+
+  if (fromBlokk > 0 && toBlokk <= 0) {
+    return 'removed';
+  }
+
+  return 'moved';
+};
+
+const getChangeItemClass = (changeType: ChangeType, stylesMap: Record<string, string>): string => {
+  if (changeType === 'added') {
+    return stylesMap.changeItemAdded;
+  }
+
+  if (changeType === 'removed') {
+    return stylesMap.changeItemRemoved;
+  }
+
+  return stylesMap.changeItemMoved;
+};
+
+const getWordLineStyle = (changeType: ChangeType): string => {
+  if (changeType === 'added') {
+    return 'background:#eaf9f0;border-left:3px solid #2f8f5b;color:#1f5d3d;';
+  }
+
+  if (changeType === 'removed') {
+    return 'background:#fff1f1;border-left:3px solid #c45555;color:#7a2c2c;';
+  }
+
+  return 'background:#eef5ff;border-left:3px solid #2a63b7;color:#1f3f6c;';
+};
+
+export const ChangeLogView = ({ changeLog, currentStudents, onOpenStudentCard }: ChangeLogViewProps) => {
   const [mode, setMode] = useState<LogMode>('summary');
+
+  const studentsById = useMemo(() => {
+    const map = new Map<string, StandardField>();
+    currentStudents.forEach((student) => {
+      if (student.studentId && student.studentId.trim().length > 0) {
+        map.set(student.studentId, student);
+      }
+    });
+    return map;
+  }, [currentStudents]);
+
+  const studentsByNameClass = useMemo(() => {
+    const map = new Map<string, StandardField>();
+    currentStudents.forEach((student) => {
+      const key = `${(student.navn || '').trim().toLocaleLowerCase('nb')}|${(student.klasse || '').trim().toLocaleLowerCase('nb')}`;
+      if (!map.has(key)) {
+        map.set(key, student);
+      }
+    });
+    return map;
+  }, [currentStudents]);
 
   const groupedChanges = useMemo(() => {
     const byStudentId = new Map<string, GroupedStudentChange>();
@@ -131,90 +202,110 @@ export const ChangeLogView = ({ changeLog, onOpenStudentCard }: ChangeLogViewPro
     return `Blokk ${value}`;
   };
 
-  const renderSummaryText = (entry: SummaryEntry): string => {
+  const renderSummaryHtml = (entry: SummaryEntry): string => {
     if (entry.fromBlokk <= 0 && entry.toBlokk > 0) {
-      return `${entry.subject}: lagt til i ${formatBlokk(entry.toBlokk)}`;
+      return `<strong>${escapeHtml(entry.subject)}</strong>: lagt til i ${escapeHtml(formatBlokk(entry.toBlokk))}`;
     }
 
     if (entry.fromBlokk > 0 && entry.toBlokk <= 0) {
-      return `${entry.subject}: fjernet fra ${formatBlokk(entry.fromBlokk)}`;
+      return `<strong>${escapeHtml(entry.subject)}</strong>: fjernet fra ${escapeHtml(formatBlokk(entry.fromBlokk))}`;
     }
 
     if (entry.fromBlokk === entry.toBlokk) {
-      return `${entry.subject}: ingen netto endring (${formatBlokk(entry.toBlokk)})`;
+      return `<strong>${escapeHtml(entry.subject)}</strong>: ingen netto endring (${escapeHtml(formatBlokk(entry.toBlokk))})`;
     }
 
-    return `${entry.subject}: flyttet fra ${formatBlokk(entry.fromBlokk)} til ${formatBlokk(entry.toBlokk)}`;
+    return `<strong>${escapeHtml(entry.subject)}</strong>: flyttet fra ${escapeHtml(formatBlokk(entry.fromBlokk))} til ${escapeHtml(formatBlokk(entry.toBlokk))}`;
   };
 
-  const handleExportToWord = async () => {
+  const renderSummaryContent = (entry: SummaryEntry) => {
+    if (entry.fromBlokk <= 0 && entry.toBlokk > 0) {
+      return (
+        <>
+          <strong>{entry.subject}</strong>: lagt til i {formatBlokk(entry.toBlokk)}
+        </>
+      );
+    }
+
+    if (entry.fromBlokk > 0 && entry.toBlokk <= 0) {
+      return (
+        <>
+          <strong>{entry.subject}</strong>: fjernet fra {formatBlokk(entry.fromBlokk)}
+        </>
+      );
+    }
+
+    if (entry.fromBlokk === entry.toBlokk) {
+      return (
+        <>
+          <strong>{entry.subject}</strong>: ingen netto endring ({formatBlokk(entry.toBlokk)})
+        </>
+      );
+    }
+
+    return (
+      <>
+        <strong>{entry.subject}</strong>: flyttet fra {formatBlokk(entry.fromBlokk)} til {formatBlokk(entry.toBlokk)}
+      </>
+    );
+  };
+
+  const handleExportToWord = () => {
     if (groupedSummaries.length === 0) {
       return;
     }
 
     try {
-      const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import('docx');
       const generatedAt = new Date();
-      const children: InstanceType<typeof Paragraph>[] = [];
 
-      children.push(
-        new Paragraph({
-          text: mode === 'detailed' ? 'Endringslogg (detaljert)' : 'Endringslogg (oppsummert)',
-          heading: HeadingLevel.HEADING_1,
-        })
-      );
-      children.push(
-        new Paragraph({
-          text: `Generert: ${formatTimestamp(generatedAt.toISOString())}`,
-        })
-      );
-      children.push(new Paragraph({ text: '' }));
+      const studentRows = groupedSummaries.map((group) => {
+        const studentKey = `${group.navn.trim().toLocaleLowerCase('nb')}|${group.klasse.trim().toLocaleLowerCase('nb')}`;
+        const currentStudent = studentsById.get(group.studentId) || studentsByNameClass.get(studentKey);
 
-      groupedSummaries.forEach((group) => {
-        const changeCount = mode === 'detailed' ? group.changes.length : group.summaryEntries.length;
+        const finalSelection = currentStudent
+          ? BLOKK_FIELDS
+            .map((blokkField, index) => {
+              const blokkNumber = index + 1;
+              const rawValue = currentStudent[blokkField];
+              const subjects = typeof rawValue === 'string'
+                ? rawValue
+                  .split(/[,;]/)
+                  .map((subject) => subject.trim())
+                  .filter((subject) => subject.length > 0)
+                : [];
 
-        children.push(
-          new Paragraph({
-            text: `${group.navn} (${group.klasse}) - ${changeCount} endringer`,
-            heading: HeadingLevel.HEADING_2,
-          })
-        );
+              if (subjects.length === 0) {
+                return '';
+              }
 
-        if (mode === 'detailed') {
-          group.changes.forEach((entry) => {
-            children.push(
-              new Paragraph({
-                bullet: { level: 0 },
-                children: [
-                  new TextRun({ text: `${formatTimestamp(entry.changedAt)}: `, bold: true }),
-                  new TextRun(entry.reason),
-                ],
-              })
-            );
-          });
-        } else {
-          group.summaryEntries.forEach((entry) => {
-            children.push(
-              new Paragraph({
-                bullet: { level: 0 },
-                children: [
-                  new TextRun({ text: `${formatTimestamp(entry.lastChangedAt)}: `, bold: true }),
-                  new TextRun(renderSummaryText(entry)),
-                ],
-              })
-            );
-          });
-        }
+              return `${blokkNumber}: ${subjects.join(', ')}`;
+            })
+            .filter((value) => value.length > 0)
+            .join(' | ')
+          : '';
 
-        children.push(new Paragraph({ text: '' }));
-      });
+        const changeLines = mode === 'detailed'
+          ? group.changes
+            .map((entry) => {
+              const changeType = getChangeType(entry.fromBlokk, entry.toBlokk);
+              return `<tr><td style="${getWordLineStyle(changeType)}padding:5px 8px;border-radius:6px 0 0 6px;"><strong>${escapeHtml(entry.subject)}</strong>: ${escapeHtml(entry.reason)}</td><td style="${getWordLineStyle(changeType)}padding:5px 8px;border-radius:0 6px 6px 0;text-align:right;white-space:nowrap;width:120px;color:#687c98;font-size:8.5pt;">${escapeHtml(formatTimestamp(entry.changedAt))}</td></tr>`;
+            })
+            .join('')
+          : group.summaryEntries
+            .map((entry) => {
+              const changeType = getChangeType(entry.fromBlokk, entry.toBlokk);
+              return `<tr><td style="${getWordLineStyle(changeType)}padding:5px 8px;border-radius:6px 0 0 6px;">${renderSummaryHtml(entry)}</td><td style="${getWordLineStyle(changeType)}padding:5px 8px;border-radius:0 6px 6px 0;text-align:right;white-space:nowrap;width:120px;color:#687c98;font-size:8.5pt;">${escapeHtml(formatTimestamp(entry.lastChangedAt))}</td></tr>`;
+            })
+            .join('');
 
-      const doc = new Document({
-        sections: [{ children }],
-      });
+        return `<section class="student"><h3>${escapeHtml(group.navn)} (${escapeHtml(group.klasse)})</h3><p class="student-meta">${escapeHtml(finalSelection || 'Ingen aktive fagvalg registrert')}</p><div class="student-change-block"><table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:separate;border-spacing:0 5px;">${changeLines}</table></div><div class="student-spacer">&nbsp;</div></section>`;
+      }).join('');
 
-      const blob = await Packer.toBlob(doc);
-      const filename = `endringslogg-${mode}-${formatDateForFilename(generatedAt)}.docx`;
+      const title = mode === 'detailed' ? 'Endringslogg (detaljert)' : 'Endringslogg (oppsummert)';
+      const htmlDocument = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>body{font-family:Calibri,Arial,sans-serif;font-size:11pt;color:#1f2b3d;margin:24px;}h1{font-size:18pt;margin:0 0 14px;}h2{font-size:13pt;margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid #d9e3f0;}.intro{margin:0 0 10px;color:#5b6d86;}h3{font-size:13pt;margin:0 0 6px;}.student{padding:8px 0;}.student-meta{margin:0 0 8px;color:#5b6d86;}.student-change-block{margin-top:8px;}.student-spacer{height:24pt;line-height:24pt;font-size:1pt;}</style></head><body><h1>${escapeHtml(title)}</h1><p class="intro">Generert: ${escapeHtml(formatTimestamp(generatedAt.toISOString()))}</p><section><h2>Elevendringer</h2>${studentRows}</section></body></html>`;
+
+      const blob = new Blob(['\ufeff', htmlDocument], { type: 'application/msword;charset=utf-8' });
+      const filename = `endringslogg-${mode}-${formatDateForFilename(generatedAt)}.doc`;
       const url = window.URL.createObjectURL(blob);
       const link = window.document.createElement('a');
       link.href = url;
@@ -274,18 +365,32 @@ export const ChangeLogView = ({ changeLog, onOpenStudentCard }: ChangeLogViewPro
           </h4>
           <ul className={styles.changeList}>
             {mode === 'detailed'
-              ? group.changes.map((entry, index) => (
-                <li key={`${group.studentId}-${entry.changedAt}-${index}`} className={styles.changeItem}>
-                  <span className={styles.changeTime}>{formatTimestamp(entry.changedAt)}</span>
-                  <span>{entry.reason}</span>
-                </li>
-              ))
-              : group.summaryEntries.map((entry, index) => (
-                <li key={`${group.studentId}-${entry.subject}-${index}`} className={styles.changeItem}>
-                  <span className={styles.changeTime}>{formatTimestamp(entry.lastChangedAt)}</span>
-                  <span>{renderSummaryText(entry)}</span>
-                </li>
-              ))}
+              ? group.changes.map((entry, index) => {
+                const changeType = getChangeType(entry.fromBlokk, entry.toBlokk);
+                return (
+                  <li
+                    key={`${group.studentId}-${entry.changedAt}-${index}`}
+                    className={`${styles.changeItem} ${getChangeItemClass(changeType, styles)}`.trim()}
+                  >
+                    <span className={styles.changeTime}>{formatTimestamp(entry.changedAt)}</span>
+                    <span>
+                      <strong>{entry.subject}</strong>: {entry.reason}
+                    </span>
+                  </li>
+                );
+              })
+              : group.summaryEntries.map((entry, index) => {
+                const changeType = getChangeType(entry.fromBlokk, entry.toBlokk);
+                return (
+                  <li
+                    key={`${group.studentId}-${entry.subject}-${index}`}
+                    className={`${styles.changeItem} ${getChangeItemClass(changeType, styles)}`.trim()}
+                  >
+                    <span className={styles.changeTime}>{formatTimestamp(entry.lastChangedAt)}</span>
+                    <span>{renderSummaryContent(entry)}</span>
+                  </li>
+                );
+              })}
           </ul>
         </section>
       ))}

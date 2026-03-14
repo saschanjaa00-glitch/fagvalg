@@ -1015,6 +1015,7 @@ function App() {
               ) : activeDataTab === 'changelog' ? (
                 <ChangeLogView
                   changeLog={studentAssignmentChanges}
+                  currentStudents={mergedData}
                   onOpenStudentCard={handleOpenStudentInElever}
                 />
               ) : (
