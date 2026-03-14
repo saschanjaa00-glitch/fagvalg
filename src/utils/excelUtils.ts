@@ -139,6 +139,7 @@ const isMathR1Header = (header: string): boolean => {
 };
 
 export interface StandardField {
+  studentId?: string;
   navn: string | null;
   klasse: string | null;
   blokkmatvg2: string | null;
@@ -274,8 +275,9 @@ export const mergeFiles = (
   files.forEach((file) => {
     const mapping = mappings.get(file.id) || {};
     
-    file.data.forEach((row) => {
+    file.data.forEach((row, rowIndex) => {
       const standardRow: StandardField = {
+        studentId: `${file.id}:${rowIndex}`,
         navn: null,
         klasse: null,
         blokkmatvg2: null,
@@ -319,6 +321,171 @@ export interface SubjectCount {
   subject: string;
   count: number;
 }
+
+export interface StudentAssignmentChange {
+  studentId: string;
+  navn: string;
+  klasse: string;
+  subject: string;
+  fromBlokk: number;
+  toBlokk: number;
+  reason: string;
+  changedAt: string;
+}
+
+const parseSubjects = (value: string | null): string[] => {
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(/[,;]/)
+    .map((subject) => subject.trim())
+    .filter((subject) => subject.length > 0);
+};
+
+const isSameSubject = (left: string, right: string): boolean => {
+  return left.localeCompare(right, 'nb', { sensitivity: 'base' }) === 0;
+};
+
+const formatSubjects = (subjects: string[]): string | null => {
+  if (subjects.length === 0) {
+    return null;
+  }
+
+  return subjects.join(', ');
+};
+
+const getBlokkField = (blokkNumber: number): keyof StandardField => {
+  return `blokk${blokkNumber}` as keyof StandardField;
+};
+
+export const moveSubjectAssignmentsBetweenBlokker = (
+  data: StandardField[],
+  subject: string,
+  fromBlokk: number,
+  toBlokk: number,
+  reason: string
+): { updatedData: StandardField[]; changes: StudentAssignmentChange[] } => {
+  if (fromBlokk === toBlokk) {
+    return { updatedData: data, changes: [] };
+  }
+
+  if (fromBlokk < 1 || fromBlokk > 8 || toBlokk < 1 || toBlokk > 8) {
+    return { updatedData: data, changes: [] };
+  }
+
+  const fromField = getBlokkField(fromBlokk);
+  const toField = getBlokkField(toBlokk);
+  const changes: StudentAssignmentChange[] = [];
+
+  const updatedData = data.map((student, index) => {
+    const fromValue = student[fromField];
+    const toValue = student[toField];
+
+    if (typeof fromValue !== 'string' || fromValue.trim().length === 0) {
+      return student;
+    }
+
+    const fromSubjects = parseSubjects(fromValue);
+    const hasSubjectInSource = fromSubjects.some((value) => isSameSubject(value, subject));
+    if (!hasSubjectInSource) {
+      return student;
+    }
+
+    const remainingSourceSubjects = fromSubjects.filter((value) => !isSameSubject(value, subject));
+    const targetSubjects = parseSubjects(typeof toValue === 'string' ? toValue : null);
+    const hasSubjectInTarget = targetSubjects.some((value) => isSameSubject(value, subject));
+    const nextTargetSubjects = hasSubjectInTarget ? targetSubjects : [...targetSubjects, subject];
+
+    const studentId = student.studentId || `${student.navn || 'ukjent'}:${student.klasse || 'ukjent'}:${index}`;
+    changes.push({
+      studentId,
+      navn: student.navn || 'Ukjent',
+      klasse: student.klasse || 'Ingen klasse',
+      subject,
+      fromBlokk,
+      toBlokk,
+      reason,
+      changedAt: new Date().toISOString(),
+    });
+
+    return {
+      ...student,
+      [fromField]: formatSubjects(remainingSourceSubjects),
+      [toField]: formatSubjects(nextTargetSubjects),
+    };
+  });
+
+  return { updatedData, changes };
+};
+
+export const swapSubjectAssignmentsBetweenBlokker = (
+  data: StandardField[],
+  subject: string,
+  blokkA: number,
+  blokkB: number,
+  reason: string
+): { updatedData: StandardField[]; changes: StudentAssignmentChange[] } => {
+  if (blokkA === blokkB) {
+    return { updatedData: data, changes: [] };
+  }
+
+  if (blokkA < 1 || blokkA > 8 || blokkB < 1 || blokkB > 8) {
+    return { updatedData: data, changes: [] };
+  }
+
+  const fieldA = getBlokkField(blokkA);
+  const fieldB = getBlokkField(blokkB);
+  const changes: StudentAssignmentChange[] = [];
+
+  const updatedData = data.map((student, index) => {
+    const valueA = student[fieldA];
+    const valueB = student[fieldB];
+
+    const subjectsA = parseSubjects(typeof valueA === 'string' ? valueA : null);
+    const subjectsB = parseSubjects(typeof valueB === 'string' ? valueB : null);
+    const hasInA = subjectsA.some((value) => isSameSubject(value, subject));
+    const hasInB = subjectsB.some((value) => isSameSubject(value, subject));
+
+    if (hasInA === hasInB) {
+      return student;
+    }
+
+    const nextA = subjectsA.filter((value) => !isSameSubject(value, subject));
+    const nextB = subjectsB.filter((value) => !isSameSubject(value, subject));
+
+    let fromBlokk = blokkA;
+    let toBlokk = blokkB;
+    if (hasInA && !hasInB) {
+      nextB.push(subject);
+    } else {
+      nextA.push(subject);
+      fromBlokk = blokkB;
+      toBlokk = blokkA;
+    }
+
+    const studentId = student.studentId || `${student.navn || 'ukjent'}:${student.klasse || 'ukjent'}:${index}`;
+    changes.push({
+      studentId,
+      navn: student.navn || 'Ukjent',
+      klasse: student.klasse || 'Ingen klasse',
+      subject,
+      fromBlokk,
+      toBlokk,
+      reason,
+      changedAt: new Date().toISOString(),
+    });
+
+    return {
+      ...student,
+      [fieldA]: formatSubjects(nextA),
+      [fieldB]: formatSubjects(nextB),
+    };
+  });
+
+  return { updatedData, changes };
+};
 
 export const tallySubjects = (mergedData: StandardField[]): SubjectCount[] => {
   const subjectMap = new Map<string, number>();

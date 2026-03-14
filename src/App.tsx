@@ -1,11 +1,21 @@
 import { useEffect, useState } from 'react';
-import type { ParsedFile, ColumnMapping, StandardField, SubjectCount } from './utils/excelUtils';
-import { mergeFiles, tallySubjects, autoDetectMapping, exportToExcel, exportToTabText, loadXlsx } from './utils/excelUtils';
+import type { ParsedFile, ColumnMapping, StandardField, SubjectCount, StudentAssignmentChange } from './utils/excelUtils';
+import {
+  mergeFiles,
+  tallySubjects,
+  autoDetectMapping,
+  exportToExcel,
+  exportToTabText,
+  loadXlsx,
+  moveSubjectAssignmentsBetweenBlokker,
+  swapSubjectAssignmentsBetweenBlokker,
+} from './utils/excelUtils';
 import './App.css';
 import { FileUploader } from './components/FileUploader';
 import { ColumnMapper } from './components/ColumnMapper';
 import { MergedDataView } from './components/MergedDataView';
 import { SubjectTally } from './components/SubjectTally';
+import type { SubjectSettingsByName } from './components/SubjectTally';
 
 const LOCAL_STORAGE_KEY = 'fagvalg-opptelling-state-v1';
 
@@ -14,7 +24,9 @@ interface PersistedAppState {
   mappings: Record<string, ColumnMapping>;
   mergedData: StandardField[];
   subjects: SubjectCount[];
-  subjectMaxByName: Record<string, number>;
+  studentAssignmentChanges?: StudentAssignmentChange[];
+  subjectSettingsByName: SubjectSettingsByName;
+  subjectMaxByName?: Record<string, number>;
   blokkCount: number;
   selectedMergedSubject: string;
 }
@@ -24,7 +36,8 @@ function App() {
   const [mappings, setMappings] = useState<Map<string, ColumnMapping>>(new Map());
   const [mergedData, setMergedData] = useState<StandardField[]>([]);
   const [subjects, setSubjects] = useState<SubjectCount[]>([]);
-  const [subjectMaxByName, setSubjectMaxByName] = useState<Record<string, number>>({});
+  const [studentAssignmentChanges, setStudentAssignmentChanges] = useState<StudentAssignmentChange[]>([]);
+  const [subjectSettingsByName, setSubjectSettingsByName] = useState<SubjectSettingsByName>({});
   const [blokkCount, setBlokkCount] = useState(4);
   
   const [columnMapperExpanded, setColumnMapperExpanded] = useState(false);
@@ -60,8 +73,31 @@ function App() {
         setSubjects(parsedState.subjects);
       }
 
-      if (parsedState.subjectMaxByName && typeof parsedState.subjectMaxByName === 'object') {
-        setSubjectMaxByName(parsedState.subjectMaxByName);
+      if (Array.isArray(parsedState.studentAssignmentChanges)) {
+        setStudentAssignmentChanges(parsedState.studentAssignmentChanges);
+      }
+
+      if (parsedState.subjectSettingsByName && typeof parsedState.subjectSettingsByName === 'object') {
+        setSubjectSettingsByName(parsedState.subjectSettingsByName);
+      } else if (parsedState.subjectMaxByName && typeof parsedState.subjectMaxByName === 'object') {
+        // Backward compatibility for persisted v1 shape.
+        const migrated: SubjectSettingsByName = Object.fromEntries(
+          Object.entries(parsedState.subjectMaxByName).map(([subject, max]) => [
+            subject,
+            {
+              defaultMax: typeof max === 'number' ? max : 30,
+              blokkMaxOverrides: {},
+              blokkEnabled: {
+                'Blokk 1': true,
+                'Blokk 2': true,
+                'Blokk 3': true,
+                'Blokk 4': true,
+              },
+              blokkOrder: ['Blokk 1', 'Blokk 2', 'Blokk 3', 'Blokk 4'],
+            },
+          ])
+        ) as SubjectSettingsByName;
+        setSubjectSettingsByName(migrated);
       }
 
       if (typeof parsedState.blokkCount === 'number') {
@@ -88,7 +124,8 @@ function App() {
       mappings: Object.fromEntries(mappings.entries()),
       mergedData,
       subjects,
-      subjectMaxByName,
+      studentAssignmentChanges,
+      subjectSettingsByName,
       blokkCount,
       selectedMergedSubject,
     };
@@ -100,7 +137,8 @@ function App() {
     mappings,
     mergedData,
     subjects,
-    subjectMaxByName,
+    studentAssignmentChanges,
+    subjectSettingsByName,
     blokkCount,
     selectedMergedSubject,
   ]);
@@ -140,6 +178,7 @@ function App() {
 
     setMergedData(merged);
     setSubjects(tallySubjects(merged));
+    setStudentAssignmentChanges([]);
   };
 
   const handleReset = () => {
@@ -147,8 +186,53 @@ function App() {
     setMappings(new Map());
     setMergedData([]);
     setSubjects([]);
-    setSubjectMaxByName({});
+    setStudentAssignmentChanges([]);
+    setSubjectSettingsByName({});
     setSelectedMergedSubject('');
+  };
+
+  const handleApplySubjectBlockMoves = (
+    subject: string,
+    operations: Array<
+      | { type: 'move'; fromBlokk: number; toBlokk: number; reason: string }
+      | { type: 'swap'; blokkA: number; blokkB: number; reason: string }
+    >
+  ) => {
+    if (operations.length === 0) {
+      return;
+    }
+
+    let workingData = mergedData;
+    let allChanges: StudentAssignmentChange[] = [];
+
+    operations.forEach((operation) => {
+      const result = operation.type === 'swap'
+        ? swapSubjectAssignmentsBetweenBlokker(
+          workingData,
+          subject,
+          operation.blokkA,
+          operation.blokkB,
+          operation.reason
+        )
+        : moveSubjectAssignmentsBetweenBlokker(
+          workingData,
+          subject,
+          operation.fromBlokk,
+          operation.toBlokk,
+          operation.reason
+        );
+
+      workingData = result.updatedData;
+      allChanges = [...allChanges, ...result.changes];
+    });
+
+    if (allChanges.length === 0) {
+      return;
+    }
+
+    setMergedData(workingData);
+    setSubjects(tallySubjects(workingData));
+    setStudentAssignmentChanges((prev) => [...prev, ...allChanges]);
   };
 
   const handleClearStoredData = () => {
@@ -472,8 +556,9 @@ function App() {
                 <SubjectTally
                   subjects={subjects}
                   mergedData={mergedData}
-                  subjectMaxByName={subjectMaxByName}
-                  onSaveSubjectMaxByName={setSubjectMaxByName}
+                  subjectSettingsByName={subjectSettingsByName}
+                  onSaveSubjectSettingsByName={setSubjectSettingsByName}
+                  onApplySubjectBlockMoves={handleApplySubjectBlockMoves}
                 />
               )}
             </div>
