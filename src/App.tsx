@@ -18,6 +18,7 @@ import { ColumnMapper } from './components/ColumnMapper';
 import { MergedDataView } from './components/MergedDataView';
 import { SubjectTally } from './components/SubjectTally';
 import { EleverView } from './components/EleverView';
+import { ChangeLogView } from './components/ChangeLogView';
 import type { SubjectSettingsByName } from './components/SubjectTally';
 
 const LOCAL_STORAGE_KEY = 'fagvalg-opptelling-state-v1';
@@ -53,7 +54,7 @@ function App() {
   const [blokkCount, setBlokkCount] = useState(4);
   
   const [columnMapperExpanded, setColumnMapperExpanded] = useState(false);
-  const [activeDataTab, setActiveDataTab] = useState<'import' | 'subjects' | 'students' | 'elever'>('import');
+  const [activeDataTab, setActiveDataTab] = useState<'import' | 'subjects' | 'students' | 'elever' | 'changelog'>('import');
   const [warningExpanded, setWarningExpanded] = useState(false);
   const [warningBlokkCollisionExpanded, setWarningBlokkCollisionExpanded] = useState(false);
   const [warningFewSubjectsExpanded, setWarningFewSubjectsExpanded] = useState(false);
@@ -902,6 +903,15 @@ function App() {
                 >
                   Elevtabell ({mergedData.length} elever)
                 </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeDataTab === 'changelog'}
+                  className={`data-tab ${activeDataTab === 'changelog' ? 'data-tab-active' : ''}`.trim()}
+                  onClick={() => setActiveDataTab('changelog')}
+                >
+                  Endringslogg ({new Set(studentAssignmentChanges.map((entry) => entry.studentId)).size} elever)
+                </button>
               </div>
             </div>
 
@@ -1001,6 +1011,11 @@ function App() {
                   onSubjectFilterChange={setSelectedMergedSubject}
                   subjectOptions={subjects.map((subject) => subject.subject)}
                   blokkCount={blokkCount}
+                />
+              ) : activeDataTab === 'changelog' ? (
+                <ChangeLogView
+                  changeLog={studentAssignmentChanges}
+                  onOpenStudentCard={handleOpenStudentInElever}
                 />
               ) : (
                 <EleverView

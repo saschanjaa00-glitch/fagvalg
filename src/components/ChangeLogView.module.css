@@ -1,0 +1,92 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modeToggle {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.modeBtn {
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  background: #f3f3f3;
+  color: #444;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.modeBtn:hover {
+  background: #ececec;
+}
+
+.modeBtnActive {
+  background: #fff;
+  border-color: #a9a9a9;
+  color: #222;
+}
+
+.empty {
+  text-align: center;
+  color: #888;
+  padding: 18px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: #fafafa;
+  font-size: 12px;
+}
+
+.studentBlock {
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.studentHeader {
+  margin: 0;
+  padding: 8px 10px;
+  border-bottom: 1px solid #ececec;
+  background: #f6f6f6;
+  font-size: 13px;
+  color: #222;
+}
+
+.studentHeaderBtn {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.studentHeaderBtn:hover {
+  text-decoration: underline;
+}
+
+.changeList {
+  margin: 0;
+  padding: 8px 10px 10px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.changeItem {
+  font-size: 12px;
+  color: #333;
+  line-height: 1.35;
+}
+
+.changeTime {
+  color: #666;
+  margin-right: 6px;
+}

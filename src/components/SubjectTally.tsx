@@ -396,7 +396,6 @@ export const SubjectTally = ({
   onRemoveStudentsFromSubject,
   onOpenStudentCard,
 }: SubjectTallyProps) => {
-  const [markOverfilled, setMarkOverfilled] = useState(false);
   const [showOverfillModal, setShowOverfillModal] = useState(false);
   const [massUpdateMax, setMassUpdateMax] = useState(String(DEFAULT_MAX_PER_SUBJECT));
   const [draftsBySubject, setDraftsBySubject] = useState<Record<string, SubjectDraft>>({});
@@ -852,15 +851,11 @@ export const SubjectTally = ({
     return subjects.map((item) => {
       const breakdown = getBlokkBreakdown(item.subject);
       const resolved = getResolvedForSubject(item.subject, breakdown);
-      const overfilled = BLOKK_LABELS.some((blokk) => {
-        return resolved.groupsByTarget[blokk].some((group) => group.overfilled);
-      });
 
       return {
         item,
         breakdown,
         ...resolved,
-        overfilled,
       };
     });
   }, [subjects, mergedData, subjectSettingsByName]);
@@ -878,13 +873,6 @@ export const SubjectTally = ({
           title="Eksporter fagoversiktstabell"
         >
           Eksport tabell
-        </button>
-        <button
-          className={`${styles.overfillBtn} ${markOverfilled ? styles.overfillBtnActive : ''}`.trim()}
-          onClick={() => setMarkOverfilled((prev) => !prev)}
-          title="Veksle fremheving av overfylte"
-        >
-          Merk overfylte
         </button>
         <button
           className={styles.settingsBtn}
@@ -910,7 +898,7 @@ export const SubjectTally = ({
           {subjectRows.map((row) => {
             return (
               <tr key={row.item.subject} className={styles.subjectRow}>
-                <td className={`${styles.subjectNameCell} ${markOverfilled && row.overfilled ? styles.overfilledSubject : ''}`.trim()}>{row.item.subject}</td>
+                <td className={styles.subjectNameCell}>{row.item.subject}</td>
                 {BLOKK_LABELS.map((targetBlokk) => {
                   const entries = row.groupsByTarget[targetBlokk].filter(shouldShowGroup);
                   const groupGridClassName = entries.length <= 1
@@ -977,7 +965,7 @@ export const SubjectTally = ({
                   );
                 })}
                 <td
-                  className={`${styles.totalCell} ${markOverfilled && row.overfilled ? styles.totalCellOverfilled : ''}`.trim()}
+                  className={styles.totalCell}
                   onDoubleClick={() => handleCopyTotal(row.item.subject, row.activeTotal)}
                   title="Dobbeltklikk for a kopiere"
                   style={{
