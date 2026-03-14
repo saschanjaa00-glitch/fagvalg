@@ -9,12 +9,14 @@ import {
   loadXlsx,
   moveSubjectAssignmentsBetweenBlokker,
   swapSubjectAssignmentsBetweenBlokker,
+  exportToExcelDetailed,
 } from './utils/excelUtils';
 import './App.css';
 import { FileUploader } from './components/FileUploader';
 import { ColumnMapper } from './components/ColumnMapper';
 import { MergedDataView } from './components/MergedDataView';
 import { SubjectTally } from './components/SubjectTally';
+import { EleverView } from './components/EleverView';
 import type { SubjectSettingsByName } from './components/SubjectTally';
 
 const LOCAL_STORAGE_KEY = 'fagvalg-opptelling-state-v1';
@@ -41,8 +43,7 @@ function App() {
   const [blokkCount, setBlokkCount] = useState(4);
   
   const [columnMapperExpanded, setColumnMapperExpanded] = useState(false);
-  const [mergedDataExpanded, setMergedDataExpanded] = useState(false);
-  const [subjectTallyExpanded, setSubjectTallyExpanded] = useState(false);
+  const [activeDataTab, setActiveDataTab] = useState<'subjects' | 'students' | 'elever'>('subjects');
   const [warningExpanded, setWarningExpanded] = useState(false);
   const [warningCopyStatus, setWarningCopyStatus] = useState('');
   const [selectedMergedSubject, setSelectedMergedSubject] = useState('');
@@ -252,8 +253,25 @@ function App() {
     await exportToExcel(mergedData, 'merged_students.xlsx');
   };
 
+  const handleExportDetailed = async () => {
+    await exportToExcelDetailed(mergedData, blokkCount, 'merged_students_full.xlsx');
+  };
+
   const handleExportText = () => {
     exportToTabText(mergedData, 'merged_students.txt');
+  };
+
+  const handleStudentAssignmentsUpdated = (
+    updatedData: StandardField[],
+    changes: StudentAssignmentChange[]
+  ) => {
+    if (changes.length === 0) {
+      return;
+    }
+
+    setMergedData(updatedData);
+    setSubjects(tallySubjects(updatedData));
+    setStudentAssignmentChanges((prev) => [...prev, ...changes]);
   };
 
   // Get students with less than 3 blokkfag
@@ -441,7 +459,15 @@ function App() {
                 disabled={mergedData.length === 0}
                 title={mergedData.length === 0 ? 'Slå sammen data først' : 'Eksporter sammenslått data'}
               >
-                Eksporter til Excel
+                Eksporter til Novaschem
+              </button>
+              <button
+                onClick={handleExportDetailed}
+                className="export-btn"
+                disabled={mergedData.length === 0}
+                title={mergedData.length === 0 ? 'Slå sammen data først' : 'Eksporter med separate blokk-kolonner og fullstendige fagnavn'}
+              >
+                Eksporter til Excel (full)
               </button>
               <button
                 onClick={handleExportText}
@@ -524,15 +550,46 @@ function App() {
               </div>
             )}
             
-            <div className="merged-data-section">
-              <h3 
-                className="collapsible-header" 
-                onClick={() => setMergedDataExpanded(!mergedDataExpanded)}
+            <div className="data-tabs" role="tablist" aria-label="Data visning">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeDataTab === 'subjects'}
+                className={`data-tab ${activeDataTab === 'subjects' ? 'data-tab-active' : ''}`.trim()}
+                onClick={() => setActiveDataTab('subjects')}
               >
-                <span className="chevron">{mergedDataExpanded ? '▼' : '▶'}</span>
-                Sammenslåtte elevdata ({mergedData.length} elever)
-              </h3>
-              {mergedDataExpanded && (
+                Fagoversikt ({subjects.length} fag)
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeDataTab === 'students'}
+                className={`data-tab ${activeDataTab === 'students' ? 'data-tab-active' : ''}`.trim()}
+                onClick={() => setActiveDataTab('students')}
+              >
+                Elevdata ({mergedData.length} elever)
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeDataTab === 'elever'}
+                className={`data-tab ${activeDataTab === 'elever' ? 'data-tab-active' : ''}`.trim()}
+                onClick={() => setActiveDataTab('elever')}
+              >
+                Elever ({mergedData.length})
+              </button>
+            </div>
+
+            <div className="data-tab-panel">
+              {activeDataTab === 'subjects' ? (
+                <SubjectTally
+                  subjects={subjects}
+                  mergedData={mergedData}
+                  subjectSettingsByName={subjectSettingsByName}
+                  onSaveSubjectSettingsByName={setSubjectSettingsByName}
+                  onApplySubjectBlockMoves={handleApplySubjectBlockMoves}
+                />
+              ) : activeDataTab === 'students' ? (
                 <MergedDataView
                   data={filteredMergedData}
                   totalDataCount={mergedData.length}
@@ -541,24 +598,13 @@ function App() {
                   subjectOptions={subjects.map((subject) => subject.subject)}
                   blokkCount={blokkCount}
                 />
-              )}
-            </div>
-            
-            <div className="subject-tally-section">
-              <h3 
-                className="collapsible-header" 
-                onClick={() => setSubjectTallyExpanded(!subjectTallyExpanded)}
-              >
-                <span className="chevron">{subjectTallyExpanded ? '▼' : '▶'}</span>
-                Fagoversikt ({subjects.length} fag)
-              </h3>
-              {subjectTallyExpanded && (
-                <SubjectTally
-                  subjects={subjects}
-                  mergedData={mergedData}
-                  subjectSettingsByName={subjectSettingsByName}
-                  onSaveSubjectSettingsByName={setSubjectSettingsByName}
-                  onApplySubjectBlockMoves={handleApplySubjectBlockMoves}
+              ) : (
+                <EleverView
+                  data={mergedData}
+                  blokkCount={blokkCount}
+                  subjectOptions={subjects.map((subject) => subject.subject)}
+                  changeLog={studentAssignmentChanges}
+                  onStudentDataUpdate={handleStudentAssignmentsUpdated}
                 />
               )}
             </div>

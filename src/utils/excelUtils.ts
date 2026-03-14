@@ -616,6 +616,44 @@ export const exportToExcel = async (mergedData: StandardField[], filename: strin
   XLSX.writeFile(workbook, filename);
 };
 
+export const exportToExcelDetailed = async (
+  mergedData: StandardField[],
+  blokkCount: number,
+  filename: string = 'merged_students_full.xlsx'
+) => {
+  const XLSX = await loadXlsx();
+  const safeBlokkCount = Math.max(1, Math.min(8, blokkCount));
+
+  const exportData = mergedData.map((row) => {
+    const base: Record<string, string> = {
+      Navn: row.navn || '',
+      Klasse: row.klasse || '',
+    };
+
+    for (let i = 1; i <= safeBlokkCount; i++) {
+      const key = `blokk${i}` as keyof StandardField;
+      base[`Blokk ${i}`] = typeof row[key] === 'string' ? row[key] || '' : '';
+    }
+
+    base.Reserve = row.reserve || '';
+    return base;
+  });
+
+  const worksheet = XLSX.utils.json_to_sheet(exportData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Students Full');
+
+  const cols = [
+    { wch: 24 },
+    { wch: 12 },
+    ...Array.from({ length: safeBlokkCount }, () => ({ wch: 24 })),
+    { wch: 24 },
+  ];
+  worksheet['!cols'] = cols;
+
+  XLSX.writeFile(workbook, filename);
+};
+
 /**
  * Export merged data as a tab-separated text file with student numbers and subject codes
  */

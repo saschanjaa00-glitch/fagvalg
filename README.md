@@ -1,4 +1,4 @@
-# Excel File Merger
+﻿# InSchool Balansering
 
 A web application for importing, mapping, and merging multiple Excel files with automatic column mapping, grade progression, and subject tallying.
 
@@ -8,7 +8,7 @@ A web application for importing, mapping, and merging multiple Excel files with 
 - **Auto-Column Detection**: Automatically identifies and maps Elevnavn, Klasse, and Blokk columns
 - **Smart Column Mapping**: Interactively map columns (shows auto-detected values)
 - **Data Merge**: Combine data from all files into a single consolidated dataset
-- **Grade Progression**: Automatically increments student class year (1STA → 2STA, 2STA → 3STA, etc.)
+- **Grade Progression**: Automatically increments student class year (1STA â†’ 2STA, 2STA â†’ 3STA, etc.)
 - **Subject Tally**: Automatic counting of students per school subject
 - **Excel Export**: Download merged results as properly formatted Excel file
 - **Responsive UI**: Clean, modern interface with dark theme
@@ -47,15 +47,15 @@ The application maps columns to these standard fields:
 
 ### Column Auto-Detection
 The app recognizes these column name patterns:
-- "Elevnavn", "elevnavn", "Student Name" → **Navn**
-- "Klasse", "klasse", "Class" → **Klasse**
-- Columns containing "blokk1", "BLOKK1", "blokk1-vg2" → **Blokk 1**
+- "Elevnavn", "elevnavn", "Student Name" â†’ **Navn**
+- "Klasse", "klasse", "Class" â†’ **Klasse**
+- Columns containing "blokk1", "BLOKK1", "blokk1-vg2" â†’ **Blokk 1**
 - Similar patterns for Blokk 2, 3, and 4
 
 ### Grade Progression
-- Input: "1STA" → Output: "2STA"
-- Input: "2VG2" → Output: "3VG2"
-- Input: "3STB" → Output: "4STB"
+- Input: "1STA" â†’ Output: "2STA"
+- Input: "2VG2" â†’ Output: "3VG2"
+- Input: "3STB" â†’ Output: "4STB"
 
 ### Subject Tallying
 If a student has:
@@ -106,17 +106,17 @@ The production build will be in the `dist/` directory.
 
 ```
 src/
-├── components/           # React components
-│   ├── FileUploader.tsx
-│   ├── ColumnMapper.tsx
-│   ├── MergedDataView.tsx
-│   ├── SubjectTally.tsx
-│   └── *.module.css     # Component styles
-├── utils/
-│   └── excelUtils.ts     # Excel parsing and data processing logic
-├── App.tsx              # Main app component
-├── main.tsx            # Entry point
-└── index.css           # Global styles
+â”œâ”€â”€ components/           # React components
+â”‚   â”œâ”€â”€ FileUploader.tsx
+â”‚   â”œâ”€â”€ ColumnMapper.tsx
+â”‚   â”œâ”€â”€ MergedDataView.tsx
+â”‚   â”œâ”€â”€ SubjectTally.tsx
+â”‚   â””â”€â”€ *.module.css     # Component styles
+â”œâ”€â”€ utils/
+â”‚   â””â”€â”€ excelUtils.ts     # Excel parsing and data processing logic
+â”œâ”€â”€ App.tsx              # Main app component
+â”œâ”€â”€ main.tsx            # Entry point
+â””â”€â”€ index.css           # Global styles
 ```
 
 ## Features in Detail
@@ -140,7 +140,7 @@ When files are uploaded, the app automatically:
 ### Grade Progression
 When merging data:
 - Student class years are automatically incremented by 1
-- Handles various class formats: "1STA" → "2STA", "2VG2" → "3VG2", etc.
+- Handles various class formats: "1STA" â†’ "2STA", "2VG2" â†’ "3VG2", etc.
 - Applied consistently across all students during the merge
 
 ### Data Consolidation
@@ -176,3 +176,4 @@ When merging data:
 - Custom field definitions
 - Data validation and error reporting
 - Duplicate detection and merging
+

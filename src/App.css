@@ -208,6 +208,41 @@
   padding-bottom: 0;
 }
 
+.data-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 8px;
+}
+
+.data-tab {
+  border: 1px solid #d7d7d7;
+  background: #f6f6f6;
+  color: #555;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.data-tab:hover {
+  background: #efefef;
+}
+
+.data-tab-active {
+  background: #ffffff;
+  color: #222;
+  border-color: #bbbbbb;
+}
+
+.data-tab-panel {
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+
 .column-mapper-section h3,
 .merged-data-section h3,
 .subject-tally-section h3 {
