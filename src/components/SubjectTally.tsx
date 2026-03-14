@@ -373,6 +373,7 @@ export const SubjectTally = ({
   const [copiedSubject, setCopiedSubject] = useState<string | null>(null);
   const [draggedSubject, setDraggedSubject] = useState<string | null>(null);
   const [draggedGroupId, setDraggedGroupId] = useState<string | null>(null);
+  const [activeTrashSubject, setActiveTrashSubject] = useState<string | null>(null);
 
   const getBlokkBreakdown = (subject: string): Record<BlokkLabel, number> => {
     const blokkCounts: Record<BlokkLabel, number> = {
@@ -467,6 +468,7 @@ export const SubjectTally = ({
   const clearDraggedState = () => {
     setDraggedSubject(null);
     setDraggedGroupId(null);
+    setActiveTrashSubject(null);
   };
 
   const moveGroupToBlokk = (subject: string, groupId: string, targetBlokk: BlokkLabel) => {
@@ -837,15 +839,40 @@ export const SubjectTally = ({
                 </td>
                 <td>
                   <div
-                    className={styles.trashDropZone}
-                    onDragOver={(event) => event.preventDefault()}
+                    className={`${styles.trashDropZone} ${activeTrashSubject === row.item.subject ? styles.trashDropZoneActive : ''}`.trim()}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      if (activeTrashSubject !== row.item.subject) {
+                        setActiveTrashSubject(row.item.subject);
+                      }
+                    }}
+                    onDragEnter={(event) => {
+                      event.preventDefault();
+                      setActiveTrashSubject(row.item.subject);
+                    }}
+                    onDragLeave={() => {
+                      if (activeTrashSubject === row.item.subject) {
+                        setActiveTrashSubject(null);
+                      }
+                    }}
                     onDrop={(event) => {
                       event.preventDefault();
                       removeDraggedGroup(row.item.subject);
                     }}
                     title="Dra en gruppe hit for a fjerne"
+                    aria-label="Fjern gruppe"
                   >
-                    X
+                    <svg
+                      className={styles.trashIcon}
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                      focusable="false"
+                    >
+                      <path className={styles.trashLid} d="M9 3h6l1 2h4v2H4V5h4l1-2z" />
+                      <path d="M7 7h10l-1 13H8L7 7z" />
+                      <path d="M10 10v7" />
+                      <path d="M14 10v7" />
+                    </svg>
                   </div>
                 </td>
               </tr>

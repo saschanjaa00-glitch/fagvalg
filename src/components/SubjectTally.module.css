@@ -210,6 +210,33 @@
   user-select: none;
 }
 
+.trashDropZoneActive {
+  border-color: #cf6b6b;
+  background: #fff2f2;
+  color: #b24646;
+}
+
+.trashIcon {
+  width: 16px;
+  height: 16px;
+  display: block;
+  margin: 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.trashLid {
+  transform-origin: 7px 7px;
+  transition: transform 0.14s ease;
+}
+
+.trashDropZoneActive .trashLid {
+  transform: translate(-2px, -1px) rotate(-16deg);
+}
+
 .groupCard {
   display: inline-flex;
   align-items: center;
