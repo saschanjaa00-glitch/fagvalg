@@ -194,7 +194,7 @@ const DEFAULT_PROGRESSIVE_CAPACITY_STEP = 2;
 const ENABLE_CROSS_BLOCK_ROTATIONS = true;
 
 const DEFAULT_WEIGHTS: BalancingWeights = {
-  overcapA: 8,
+  overcapA: 10,
   imbalanceB: 1,
   peakC: 1.8,
   collisionD: BIG_COLLISION_PENALTY,
@@ -217,9 +217,9 @@ export const DEFAULT_BALANCING_CONFIG: BalancingConfig = {
   weights: DEFAULT_WEIGHTS,
   epsilon: 0.0001,
   maxRelaxation: 10,
-  maxPassMillis: 1400,
-  maxLookaheadAttempts: 180,
-  maxDepth2Chains: 50,
+  maxPassMillis: 3000,
+  maxLookaheadAttempts: 300,
+  maxDepth2Chains: 150,
   classBlockRestrictions: DEFAULT_CLASS_BLOCK_RESTRICTIONS,
   excludedSubjects: [],
   lockedAssignmentKeys: [],

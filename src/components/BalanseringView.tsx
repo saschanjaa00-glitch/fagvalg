@@ -71,6 +71,31 @@ const normalizeRestrictions = (input: ClassBlockRestrictions): ClassBlockRestric
   return next;
 };
 
+const inferClassLevel = (classGroup: string | null | undefined): string | null => {
+  const normalized = (classGroup || '').trim().toUpperCase();
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  const match = normalized.match(/^(\d)/);
+  if (!match) {
+    return DEFAULT_CLASS_LEVELS.includes(normalized) ? normalized : null;
+  }
+
+  const year = Number.parseInt(match[1], 10);
+  if (year === 1) {
+    return 'VG1';
+  }
+  if (year === 2) {
+    return 'VG2';
+  }
+  if (year >= 3) {
+    return 'VG3';
+  }
+
+  return null;
+};
+
 export const BalanseringView = ({
   mergedData,
   subjectSettingsByName,
@@ -88,6 +113,20 @@ export const BalanseringView = ({
   const [lastResult, setLastResult] = useState<ProgressiveHybridBalanceResult | null>(null);
 
   const effectiveRestrictions = useMemo(() => normalizeRestrictions(restrictions), [restrictions]);
+  const visibleClassLevels = useMemo(() => {
+    const levels = new Set<string>();
+
+    mergedData.forEach((row) => {
+      const classLevel = inferClassLevel(row.klasse);
+      if (classLevel) {
+        levels.add(classLevel);
+      }
+    });
+
+    const orderedLevels = DEFAULT_CLASS_LEVELS.filter((level) => levels.has(level));
+    return orderedLevels.length > 0 ? orderedLevels : DEFAULT_CLASS_LEVELS.filter((level) => level !== 'VG1');
+  }, [mergedData]);
+
   const availableSubjects = useMemo(() => {
     const subjects = new Set<string>();
 
@@ -195,7 +234,7 @@ export const BalanseringView = ({
               </tr>
             </thead>
             <tbody>
-              {DEFAULT_CLASS_LEVELS.map((classKey) => {
+              {visibleClassLevels.map((classKey) => {
                 return (
                   <tr key={classKey}>
                     <td>{classKey}</td>
