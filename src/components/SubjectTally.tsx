@@ -759,6 +759,11 @@ export const SubjectTally = ({
                 <td className={`${styles.subjectNameCell} ${markOverfilled && row.overfilled ? styles.overfilledSubject : ''}`.trim()}>{row.item.subject}</td>
                 {BLOKK_LABELS.map((targetBlokk) => {
                   const entries = row.groupsByTarget[targetBlokk].filter(shouldShowGroup);
+                  const groupGridClassName = entries.length <= 1
+                    ? styles.groupCardsGridOne
+                    : (entries.length === 2 || entries.length === 4)
+                      ? styles.groupCardsGridTwo
+                      : styles.groupCardsGridThree;
                   const blokkStudents = entries
                     .filter((entry) => entry.enabled)
                     .reduce((sum, entry) => sum + entry.allocatedCount, 0);
@@ -779,25 +784,27 @@ export const SubjectTally = ({
                       }}
                     >
                       <div className={styles.groupStack}>
-                        {entries.map((entry) => {
-                          return (
-                            <div
-                              key={`${row.item.subject}-${targetBlokk}-${entry.id}`}
-                              className={`${styles.groupCard} ${entry.enabled ? styles.groupCardActive : styles.groupCardInactive} ${entry.overfilled ? styles.groupCardOverfilled : ''}`.trim()}
-                              draggable={true}
-                              onDragStart={(event) => {
-                                event.dataTransfer.effectAllowed = 'move';
-                                event.dataTransfer.setData('text/plain', `${row.item.subject}:${entry.id}`);
-                                setDraggedSubject(row.item.subject);
-                                setDraggedGroupId(entry.id);
-                              }}
-                              onDragEnd={clearDraggedState}
-                              title={`${entry.label} (${entry.allocatedCount} / ${entry.max})`}
-                            >
-                              <span className={styles.groupCount}>{entry.allocatedCount}</span>
-                            </div>
-                          );
-                        })}
+                        <div className={`${styles.groupCardsGrid} ${groupGridClassName}`.trim()}>
+                          {entries.map((entry) => {
+                            return (
+                              <div
+                                key={`${row.item.subject}-${targetBlokk}-${entry.id}`}
+                                className={`${styles.groupCard} ${entry.enabled ? styles.groupCardActive : styles.groupCardInactive} ${entry.overfilled ? styles.groupCardOverfilled : ''}`.trim()}
+                                draggable={true}
+                                onDragStart={(event) => {
+                                  event.dataTransfer.effectAllowed = 'move';
+                                  event.dataTransfer.setData('text/plain', `${row.item.subject}:${entry.id}`);
+                                  setDraggedSubject(row.item.subject);
+                                  setDraggedGroupId(entry.id);
+                                }}
+                                onDragEnd={clearDraggedState}
+                                title={`${entry.label} (${entry.allocatedCount} / ${entry.max})`}
+                              >
+                                <span className={styles.groupCount}>{entry.allocatedCount}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
                         {entries.length === 0 && <div className={styles.groupEmptySlot}>Tom</div>}
                         <button
                           type="button"

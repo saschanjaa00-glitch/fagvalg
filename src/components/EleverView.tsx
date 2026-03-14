@@ -190,6 +190,7 @@ export const EleverView = ({
   const [warningIgnoreDraftByType, setWarningIgnoreDraftByType] = useState<Partial<Record<WarningType, string>>>({});
   const [statusMessage, setStatusMessage] = useState('');
   const [editAssignment, setEditAssignment] = useState<EditAssignmentState | null>(null);
+  const [logExpanded, setLogExpanded] = useState(false);
 
   const studentSummaries = useMemo(() => {
     return data.map((student, index) => {
@@ -259,6 +260,7 @@ export const EleverView = ({
   useEffect(() => {
     setEditAssignment(null);
     setWarningIgnoreDraftByType({});
+    setLogExpanded(false);
   }, [selectedStudentId]);
 
   useEffect(() => {
@@ -601,9 +603,16 @@ export const EleverView = ({
     return changeLog
       .filter((change) => change.studentId === selectedStudentEntry.studentId)
       .slice()
-      .reverse()
-      .slice(0, 12);
+      .reverse();
   }, [changeLog, selectedStudentEntry]);
+
+  const visibleStudentChanges = useMemo(() => {
+    if (logExpanded) {
+      return selectedStudentChanges;
+    }
+
+    return selectedStudentChanges.slice(0, 4);
+  }, [logExpanded, selectedStudentChanges]);
 
   const applyStatusMessage = (message: string) => {
     setStatusMessage(message);
@@ -1191,14 +1200,27 @@ export const EleverView = ({
                 {selectedStudentChanges.length === 0 ? (
                   <p className={styles.logEmpty}>Ingen endringer registrert for denne eleven ennå.</p>
                 ) : (
+                  <>
                   <ul className={styles.logList}>
-                    {selectedStudentChanges.map((change, index) => (
+                    {visibleStudentChanges.map((change, index) => (
                       <li key={`${change.changedAt}-${index}`}>
                         <span>{change.reason}</span>
                         <small>{formatTimestamp(change.changedAt)}</small>
                       </li>
                     ))}
                   </ul>
+                  {selectedStudentChanges.length > 4 && (
+                    <button
+                      type="button"
+                      className={styles.logToggleButton}
+                      onClick={() => setLogExpanded((prev) => !prev)}
+                    >
+                      {logExpanded
+                        ? 'Vis mindre'
+                        : `Vis flere (${selectedStudentChanges.length - visibleStudentChanges.length})`}
+                    </button>
+                  )}
+                  </>
                 )}
               </div>
             </>
