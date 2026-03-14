@@ -469,6 +469,31 @@
   font-weight: 600;
 }
 
+.warning-subtitle-toggle {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0 0 6px 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+}
+
+.warning-subtitle-toggle:hover .warning-subtitle {
+  color: #7a6000;
+}
+
+.warning-box-clear .warning-subtitle-toggle:hover .warning-subtitle {
+  color: #1f6436;
+}
+
+.warning-subtitle-toggle .warning-subtitle {
+  margin: 0;
+}
+
 .warning-divider {
   border: 0;
   border-top: 1px solid #e7c873;

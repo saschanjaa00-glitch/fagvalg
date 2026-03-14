@@ -54,6 +54,9 @@ function App() {
   const [columnMapperExpanded, setColumnMapperExpanded] = useState(false);
   const [activeDataTab, setActiveDataTab] = useState<'subjects' | 'students' | 'elever'>('subjects');
   const [warningExpanded, setWarningExpanded] = useState(false);
+  const [warningBlokkCollisionExpanded, setWarningBlokkCollisionExpanded] = useState(false);
+  const [warningFewSubjectsExpanded, setWarningFewSubjectsExpanded] = useState(false);
+  const [warningFourSubjectsExpanded, setWarningFourSubjectsExpanded] = useState(false);
   const [warningCopyStatus, setWarningCopyStatus] = useState('');
   const [warningIgnoresByStudentAndType, setWarningIgnoresByStudentAndType] = useState<
     Record<string, Partial<Record<WarningType, WarningIgnoreEntry>>>
@@ -703,137 +706,164 @@ function App() {
                       {warningCopyStatus && <span className="warning-copy-status">{warningCopyStatus}</span>}
                     </div>
 
-                    <h4 className="warning-subtitle">Elever med blokk-kollisjon ({activeStudentsWithBlokkCollisions.length})</h4>
-                    <ul>
-                      {studentsWithBlokkCollisions.map((entry, idx) => {
-                        const student = entry.student;
-                        return (
-                          <li key={`collision-${entry.studentId}-${idx}`}>
-                            <div className="warning-line">
-                              <span>
-                                <strong>{student.navn || 'Ukjent'}</strong> ({student.klasse || 'Ingen klasse'}) - {entry.collisionDetails.join(' | ')}
-                              </span>
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
+                    <button
+                      type="button"
+                      className="warning-subtitle-toggle"
+                      onClick={() => setWarningBlokkCollisionExpanded((prev) => !prev)}
+                    >
+                      <span className="chevron">{warningBlokkCollisionExpanded ? '▼' : '▶'}</span>
+                      <span className="warning-subtitle">Elever med blokk-kollisjon ({activeStudentsWithBlokkCollisions.length})</span>
+                    </button>
+                    {warningBlokkCollisionExpanded && (
+                      <ul>
+                        {studentsWithBlokkCollisions.map((entry, idx) => {
+                          const student = entry.student;
+                          return (
+                            <li key={`collision-${entry.studentId}-${idx}`}>
+                              <div className="warning-line">
+                                <span>
+                                  <strong>{student.navn || 'Ukjent'}</strong> ({student.klasse || 'Ingen klasse'}) - {entry.collisionDetails.join(' | ')}
+                                </span>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
 
                     <hr className="warning-divider" />
 
-                    <h4 className="warning-subtitle">Elever med færre enn 3 blokkfag ({activeStudentsWithFewSubjects.length}, ignorert: {fewSubjectsIgnoredCount})</h4>
-                    <ul>
-                      {studentsWithFewSubjects.map((entry, idx) => {
-                        const student = entry.student;
-                        const studentId = entry.studentId;
-                        const ignored = warningIgnoresByStudentAndType[studentId]?.missing;
-                        const subjects = getWarningSubjects(student);
-                        return (
-                          <li key={`few-${studentId}-${idx}`} className={ignored ? 'warning-ignored-item' : ''}>
-                            <div className="warning-line">
-                              <span>
-                                <strong>{student.navn || 'Ukjent'}</strong> ({student.klasse || 'Ingen klasse'}) - {subjects.length} fag: {subjects.join(', ') || 'Ingen'}
-                              </span>
-                              {ignored && <span className="warning-ignore-badge">Ignorert</span>}
-                            </div>
-                            {ignored ? (
-                              <div className="warning-ignore-row">
-                                <span className="warning-ignore-comment">Kommentar: {ignored.comment || 'Ingen kommentar'}</span>
-                                <button
-                                  type="button"
-                                  className="warning-inline-btn"
-                                  onClick={() => removeWarningIgnore(studentId, 'missing')}
-                                >
-                                  Fjern ignorering
-                                </button>
+                    <button
+                      type="button"
+                      className="warning-subtitle-toggle"
+                      onClick={() => setWarningFewSubjectsExpanded((prev) => !prev)}
+                    >
+                      <span className="chevron">{warningFewSubjectsExpanded ? '▼' : '▶'}</span>
+                      <span className="warning-subtitle">Elever med færre enn 3 blokkfag ({activeStudentsWithFewSubjects.length}, ignorert: {fewSubjectsIgnoredCount})</span>
+                    </button>
+                    {warningFewSubjectsExpanded && (
+                      <ul>
+                        {studentsWithFewSubjects.map((entry, idx) => {
+                          const student = entry.student;
+                          const studentId = entry.studentId;
+                          const ignored = warningIgnoresByStudentAndType[studentId]?.missing;
+                          const subjects = getWarningSubjects(student);
+                          return (
+                            <li key={`few-${studentId}-${idx}`} className={ignored ? 'warning-ignored-item' : ''}>
+                              <div className="warning-line">
+                                <span>
+                                  <strong>{student.navn || 'Ukjent'}</strong> ({student.klasse || 'Ingen klasse'}) - {subjects.length} fag: {subjects.join(', ') || 'Ingen'}
+                                </span>
+                                {ignored && <span className="warning-ignore-badge">Ignorert</span>}
                               </div>
-                            ) : (
-                              <div className="warning-ignore-row">
-                                <input
-                                  type="text"
-                                  maxLength={140}
-                                  className="warning-ignore-input"
-                                  placeholder="Kommentar (valgfritt)"
-                                  value={warningIgnoreDraftByStudentId[studentId] || ''}
-                                  onChange={(event) => {
-                                    const value = event.target.value;
-                                    setWarningIgnoreDraftByStudentId((prev) => ({
-                                      ...prev,
-                                      [studentId]: value,
-                                    }));
-                                  }}
-                                />
-                                <button
-                                  type="button"
-                                  className="warning-inline-btn"
-                                  onClick={() => saveWarningIgnore(studentId, 'missing')}
-                                >
-                                  Ignorer
-                                </button>
-                              </div>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
+                              {ignored ? (
+                                <div className="warning-ignore-row">
+                                  <span className="warning-ignore-comment">Kommentar: {ignored.comment || 'Ingen kommentar'}</span>
+                                  <button
+                                    type="button"
+                                    className="warning-inline-btn"
+                                    onClick={() => removeWarningIgnore(studentId, 'missing')}
+                                  >
+                                    Fjern ignorering
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="warning-ignore-row">
+                                  <input
+                                    type="text"
+                                    maxLength={140}
+                                    className="warning-ignore-input"
+                                    placeholder="Kommentar (valgfritt)"
+                                    value={warningIgnoreDraftByStudentId[studentId] || ''}
+                                    onChange={(event) => {
+                                      const value = event.target.value;
+                                      setWarningIgnoreDraftByStudentId((prev) => ({
+                                        ...prev,
+                                        [studentId]: value,
+                                      }));
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    className="warning-inline-btn"
+                                    onClick={() => saveWarningIgnore(studentId, 'missing')}
+                                  >
+                                    Ignorer
+                                  </button>
+                                </div>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
 
                     <hr className="warning-divider" />
 
-                    <h4 className="warning-subtitle">Elever med 4+ blokkfag ({activeStudentsWithFourSubjects.length}, ignorert: {fourSubjectsIgnoredCount})</h4>
-                    <ul>
-                      {studentsWithFourSubjects.map((entry, idx) => {
-                        const student = entry.student;
-                        const studentId = entry.studentId;
-                        const ignored = warningIgnoresByStudentAndType[studentId]?.overloaded;
-                        const subjects = getWarningSubjects(student);
-                        return (
-                          <li key={`four-${studentId}-${idx}`} className={ignored ? 'warning-ignored-item' : ''}>
-                            <div className="warning-line">
-                              <span>
-                                <strong>{student.navn || 'Ukjent'}</strong> ({student.klasse || 'Ingen klasse'}) - 4 fag: {subjects.join(', ')}
-                              </span>
-                              {ignored && <span className="warning-ignore-badge">Ignorert</span>}
-                            </div>
-                            {ignored ? (
-                              <div className="warning-ignore-row">
-                                <span className="warning-ignore-comment">Kommentar: {ignored.comment || 'Ingen kommentar'}</span>
-                                <button
-                                  type="button"
-                                  className="warning-inline-btn"
-                                  onClick={() => removeWarningIgnore(studentId, 'overloaded')}
-                                >
-                                  Fjern ignorering
-                                </button>
+                    <button
+                      type="button"
+                      className="warning-subtitle-toggle"
+                      onClick={() => setWarningFourSubjectsExpanded((prev) => !prev)}
+                    >
+                      <span className="chevron">{warningFourSubjectsExpanded ? '▼' : '▶'}</span>
+                      <span className="warning-subtitle">Elever med 4+ blokkfag ({activeStudentsWithFourSubjects.length}, ignorert: {fourSubjectsIgnoredCount})</span>
+                    </button>
+                    {warningFourSubjectsExpanded && (
+                      <ul>
+                        {studentsWithFourSubjects.map((entry, idx) => {
+                          const student = entry.student;
+                          const studentId = entry.studentId;
+                          const ignored = warningIgnoresByStudentAndType[studentId]?.overloaded;
+                          const subjects = getWarningSubjects(student);
+                          return (
+                            <li key={`four-${studentId}-${idx}`} className={ignored ? 'warning-ignored-item' : ''}>
+                              <div className="warning-line">
+                                <span>
+                                  <strong>{student.navn || 'Ukjent'}</strong> ({student.klasse || 'Ingen klasse'}) - 4 fag: {subjects.join(', ')}
+                                </span>
+                                {ignored && <span className="warning-ignore-badge">Ignorert</span>}
                               </div>
-                            ) : (
-                              <div className="warning-ignore-row">
-                                <input
-                                  type="text"
-                                  maxLength={140}
-                                  className="warning-ignore-input"
-                                  placeholder="Kommentar (valgfritt)"
-                                  value={warningIgnoreDraftByStudentId[studentId] || ''}
-                                  onChange={(event) => {
-                                    const value = event.target.value;
-                                    setWarningIgnoreDraftByStudentId((prev) => ({
-                                      ...prev,
-                                      [studentId]: value,
-                                    }));
-                                  }}
-                                />
-                                <button
-                                  type="button"
-                                  className="warning-inline-btn"
-                                  onClick={() => saveWarningIgnore(studentId, 'overloaded')}
-                                >
-                                  Ignorer
-                                </button>
-                              </div>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
+                              {ignored ? (
+                                <div className="warning-ignore-row">
+                                  <span className="warning-ignore-comment">Kommentar: {ignored.comment || 'Ingen kommentar'}</span>
+                                  <button
+                                    type="button"
+                                    className="warning-inline-btn"
+                                    onClick={() => removeWarningIgnore(studentId, 'overloaded')}
+                                  >
+                                    Fjern ignorering
+                                  </button>
+                                </div>
+                              ) : (
+                                <div className="warning-ignore-row">
+                                  <input
+                                    type="text"
+                                    maxLength={140}
+                                    className="warning-ignore-input"
+                                    placeholder="Kommentar (valgfritt)"
+                                    value={warningIgnoreDraftByStudentId[studentId] || ''}
+                                    onChange={(event) => {
+                                      const value = event.target.value;
+                                      setWarningIgnoreDraftByStudentId((prev) => ({
+                                        ...prev,
+                                        [studentId]: value,
+                                      }));
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    className="warning-inline-btn"
+                                    onClick={() => saveWarningIgnore(studentId, 'overloaded')}
+                                  >
+                                    Ignorer
+                                  </button>
+                                </div>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
                   </div>
                 )}
               </div>
