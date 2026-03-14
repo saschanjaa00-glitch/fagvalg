@@ -57,7 +57,7 @@ export interface MoveRecord {
   fromBlock: BlockNumber;
   toGroupCode: string;
   toBlock: BlockNumber;
-  reason: 'overcap' | 'equalize' | 'peak-reduction' | 'collision-fix' | 'lookahead-chain';
+  reason: 'overcap' | 'equalize' | 'peak-reduction' | 'collision-fix' | 'lookahead-chain' | 'student-rotation';
   scoreDelta: number;
   chainStep?: number;
 }
@@ -81,6 +81,8 @@ export interface SubjectMetrics {
 export interface BalanceDiagnostics {
   beforeScore: ScoreBreakdown;
   afterScore: ScoreBreakdown;
+  beforeOvercapSeatCount: number;
+  afterOvercapSeatCount: number;
   subjectMetricsBefore: SubjectMetrics[];
   subjectMetricsAfter: SubjectMetrics[];
   moveCount: number;
@@ -144,6 +146,27 @@ interface CandidateMove {
   priorityTag: 'overcap' | 'equalize' | 'peak-reduction';
 }
 
+interface RotationSpec {
+  subjectCode: string;
+  subjectName: string;
+  fromBlock: BlockNumber;
+  fromGroupId: string;
+  fromGroupCode: string;
+  toBlock: BlockNumber;
+}
+
+interface RotationGroupTarget {
+  assignment: RotationSpec;
+  targetGroupId: string;
+  targetGroupCode: string;
+}
+
+interface RotationCandidate {
+  studentId: string;
+  steps: RotationSpec[];
+  estimatedScoreDelta: number;
+}
+
 interface FlowNetwork {
   candidates: CandidateMove[];
   offset: number;
@@ -166,6 +189,8 @@ export interface ProgressiveHybridBalanceResult {
 }
 
 const BIG_COLLISION_PENALTY = 1_000_000;
+const DEFAULT_PROGRESSIVE_CAPACITY_STEP = 2;
+const ENABLE_CROSS_BLOCK_ROTATIONS = true;
 
 const DEFAULT_WEIGHTS: BalancingWeights = {
   overcapA: 8,
@@ -190,7 +215,7 @@ export const DEFAULT_CLASS_BLOCK_RESTRICTIONS: ClassBlockRestrictions = {
 export const DEFAULT_BALANCING_CONFIG: BalancingConfig = {
   weights: DEFAULT_WEIGHTS,
   epsilon: 0.0001,
-  maxRelaxation: 2,
+  maxRelaxation: 10,
   maxPassMillis: 1400,
   maxLookaheadAttempts: 180,
   maxDepth2Chains: 50,
@@ -246,6 +271,23 @@ const blockFromLabel = (label: `Blokk ${BlockNumber}`): BlockNumber => {
 
 const getEffectiveCapacity = (capacity: number, offset: number): number => {
   return Math.max(0, capacity - offset);
+};
+
+const buildCapacityOffsetSchedule = (maxRelaxation: number, step: number = DEFAULT_PROGRESSIVE_CAPACITY_STEP): number[] => {
+  const normalizedRelaxation = Math.max(0, Math.floor(maxRelaxation));
+  const normalizedStep = Math.max(1, Math.floor(step));
+
+  if (normalizedRelaxation === 0) {
+    return [0];
+  }
+
+  const offsets: number[] = [];
+  for (let offset = normalizedRelaxation; offset > 0; offset -= normalizedStep) {
+    offsets.push(offset);
+  }
+  offsets.push(0);
+
+  return offsets;
 };
 
 const cloneState = (state: InternalState): InternalState => {
@@ -591,16 +633,29 @@ const computeSubjectImbalanceRaw = (sizes: number[]): number => {
   return penalty;
 };
 
-export const computeScore = (
-  state: InternalState,
-  weights: BalancingWeights,
-  moveRecords: MoveRecord[]
-): ScoreBreakdown => {
+const computeOvercapSeatCount = (state: InternalState): number => {
+  let seatCount = 0;
+  state.groups.forEach((group) => {
+    seatCount += Math.max(0, group.size - group.capacity);
+  });
+  return seatCount;
+};
+
+const computeOvercapRaw = (state: InternalState): number => {
   let overcapRaw = 0;
   state.groups.forEach((group) => {
     const excess = Math.max(0, group.size - group.capacity);
     overcapRaw += excess * excess;
   });
+  return overcapRaw;
+};
+
+export const computeScore = (
+  state: InternalState,
+  weights: BalancingWeights,
+  moveRecords: MoveRecord[]
+): ScoreBreakdown => {
+  const overcapRaw = computeOvercapRaw(state);
 
   const sizesBySubject = getSubjectSizes(state);
   let imbalanceRaw = 0;
@@ -678,7 +733,7 @@ const moveIsFeasible = (
     return false;
   }
 
-  // Offset<0 allows temporary extra headroom in relaxed passes. Offset=0 is strict.
+  // Offset>0 temporarily lowers usable capacity. Offset=0 is the real group max.
   const effectiveCapacity = getEffectiveCapacity(targetGroup.capacity, offset);
   if (targetGroup.size + 1 > effectiveCapacity) {
     return false;
@@ -749,6 +804,137 @@ const applyCandidateMoveToState = (
     chainStep,
   });
 
+  return true;
+};
+
+const findAssignmentIndex = (student: StudentNode, spec: RotationSpec): number => {
+  return student.assignments.findIndex((assignment) => {
+    return assignment.subjectCode === spec.subjectCode
+      && assignment.block === spec.fromBlock
+      && assignment.groupId === spec.fromGroupId;
+  });
+};
+
+const pickRotationTargets = (
+  state: InternalState,
+  student: StudentNode,
+  steps: RotationSpec[],
+  offset: number,
+  restrictions: ClassBlockRestrictions
+): RotationGroupTarget[] | null => {
+  const provisionalGroupDelta = new Map<string, number>();
+
+  steps.forEach((step) => {
+    const sourceGroup = Array.from(state.groups.values()).find((group) => group.groupId === step.fromGroupId);
+    if (sourceGroup) {
+      provisionalGroupDelta.set(sourceGroup.key, (provisionalGroupDelta.get(sourceGroup.key) || 0) - 1);
+    }
+  });
+
+  const targets: RotationGroupTarget[] = [];
+
+  for (const step of steps) {
+    if (!isClassAllowedInBlock(student.classGroup, step.toBlock, restrictions)) {
+      return null;
+    }
+
+    const targetGroups = (state.groupsBySubject.get(step.subjectCode) || [])
+      .filter((group) => group.block === step.toBlock)
+      .sort((left, right) => {
+        const leftLoad = (left.size + (provisionalGroupDelta.get(left.key) || 0)) / Math.max(1, left.capacity);
+        const rightLoad = (right.size + (provisionalGroupDelta.get(right.key) || 0)) / Math.max(1, right.capacity);
+        if (leftLoad !== rightLoad) {
+          return leftLoad - rightLoad;
+        }
+        if (left.groupCode !== right.groupCode) {
+          return left.groupCode.localeCompare(right.groupCode, 'nb', { sensitivity: 'base' });
+        }
+        return left.groupId.localeCompare(right.groupId, 'nb', { sensitivity: 'base' });
+      });
+
+    const chosen = targetGroups.find((group) => {
+      const effectiveCapacity = getEffectiveCapacity(group.capacity, offset);
+      return group.size + (provisionalGroupDelta.get(group.key) || 0) + 1 <= effectiveCapacity;
+    });
+
+    if (!chosen) {
+      return null;
+    }
+
+    provisionalGroupDelta.set(chosen.key, (provisionalGroupDelta.get(chosen.key) || 0) + 1);
+    targets.push({
+      assignment: step,
+      targetGroupId: chosen.groupId,
+      targetGroupCode: chosen.groupCode,
+    });
+  }
+
+  return targets;
+};
+
+const applyStudentRotationToState = (
+  state: InternalState,
+  rotation: RotationCandidate,
+  scoreDelta: number,
+  offset: number,
+  restrictions: ClassBlockRestrictions
+): boolean => {
+  const student = state.students.get(rotation.studentId);
+  if (!student) {
+    return false;
+  }
+
+  const uniqueBlocks = new Set(rotation.steps.map((step) => step.fromBlock));
+  if (uniqueBlocks.size !== rotation.steps.length) {
+    return false;
+  }
+
+  const targets = pickRotationTargets(state, student, rotation.steps, offset, restrictions);
+  if (!targets) {
+    return false;
+  }
+
+  const stepIndices = rotation.steps.map((step) => findAssignmentIndex(student, step));
+  if (stepIndices.some((index) => index < 0)) {
+    return false;
+  }
+
+  targets.forEach((target) => {
+    const sourceGroup = Array.from(state.groups.values()).find((group) => group.groupId === target.assignment.fromGroupId);
+    const destinationGroup = Array.from(state.groups.values()).find((group) => group.groupId === target.targetGroupId);
+    if (!sourceGroup || !destinationGroup) {
+      return;
+    }
+
+    sourceGroup.studentIds.delete(student.id);
+    sourceGroup.size = Math.max(0, sourceGroup.size - 1);
+    destinationGroup.studentIds.add(student.id);
+    destinationGroup.size += 1;
+  });
+
+  targets.forEach((target, index) => {
+    const assignmentIndex = stepIndices[index];
+    const assignment = student.assignments[assignmentIndex];
+    assignment.block = target.assignment.toBlock;
+    assignment.groupId = target.targetGroupId;
+    assignment.groupCode = target.targetGroupCode;
+
+    state.history.push({
+      studentId: student.id,
+      studentName: student.fullName,
+      subjectCode: assignment.subjectCode,
+      subjectName: assignment.subjectName,
+      fromGroupCode: target.assignment.fromGroupCode,
+      fromBlock: target.assignment.fromBlock,
+      toGroupCode: target.targetGroupCode,
+      toBlock: target.assignment.toBlock,
+      reason: 'student-rotation',
+      scoreDelta,
+      chainStep: index + 1,
+    });
+  });
+
+  state.studentMoveCounts.set(student.id, (state.studentMoveCounts.get(student.id) || 0) + rotation.steps.length);
   return true;
 };
 
@@ -929,6 +1115,281 @@ const generateAllCandidateMoves = (
   return buildFlowNetwork(state, config, offset).candidates;
 };
 
+const buildRotationCandidate = (
+  state: InternalState,
+  student: StudentNode,
+  steps: RotationSpec[],
+  config: BalancingConfig,
+  offset: number
+): RotationCandidate | null => {
+  const uniqueBlocks = new Set(steps.map((step) => step.fromBlock));
+  if (uniqueBlocks.size !== steps.length) {
+    return null;
+  }
+
+  const snapshot = cloneState(state);
+  const applied = applyStudentRotationToState(snapshot, {
+    studentId: student.id,
+    steps,
+    estimatedScoreDelta: 0,
+  }, 0, offset, config.classBlockRestrictions);
+
+  if (!applied) {
+    return null;
+  }
+
+  const before = computeScore(state, config.weights, state.history).total;
+  const after = computeScore(snapshot, config.weights, snapshot.history).total;
+  const delta = after - before;
+  if (!Number.isFinite(delta) || delta >= -config.epsilon) {
+    return null;
+  }
+
+  return {
+    studentId: student.id,
+    steps,
+    estimatedScoreDelta: delta,
+  };
+};
+
+const generateStudentRotationCandidates = (
+  state: InternalState,
+  config: BalancingConfig,
+  offset: number
+): RotationCandidate[] => {
+  const rotations: RotationCandidate[] = [];
+
+  const students = Array.from(state.students.values()).sort((left, right) => left.id.localeCompare(right.id));
+  students.forEach((student) => {
+    const blockCounts = new Map<BlockNumber, number>();
+    student.assignments.forEach((assignment) => {
+      blockCounts.set(assignment.block, (blockCounts.get(assignment.block) || 0) + 1);
+    });
+
+    const eligible = student.assignments
+      .filter((assignment) => !assignment.locked)
+      .filter((assignment) => (blockCounts.get(assignment.block) || 0) === 1)
+      .sort((left, right) => {
+        if (left.block !== right.block) {
+          return left.block - right.block;
+        }
+        if (left.subjectCode !== right.subjectCode) {
+          return left.subjectCode.localeCompare(right.subjectCode, 'nb', { sensitivity: 'base' });
+        }
+        return left.groupId.localeCompare(right.groupId, 'nb', { sensitivity: 'base' });
+      });
+
+    for (let i = 0; i < eligible.length; i += 1) {
+      for (let j = i + 1; j < eligible.length; j += 1) {
+        const first = eligible[i];
+        const second = eligible[j];
+        const pairSteps: RotationSpec[] = [
+          {
+            subjectCode: first.subjectCode,
+            subjectName: first.subjectName,
+            fromBlock: first.block,
+            fromGroupId: first.groupId,
+            fromGroupCode: first.groupCode,
+            toBlock: second.block,
+          },
+          {
+            subjectCode: second.subjectCode,
+            subjectName: second.subjectName,
+            fromBlock: second.block,
+            fromGroupId: second.groupId,
+            fromGroupCode: second.groupCode,
+            toBlock: first.block,
+          },
+        ];
+
+        const pairCandidate = buildRotationCandidate(state, student, pairSteps, config, offset);
+        if (pairCandidate) {
+          rotations.push(pairCandidate);
+        }
+
+        for (let k = j + 1; k < eligible.length; k += 1) {
+          const third = eligible[k];
+          const clockwise: RotationSpec[] = [
+            {
+              subjectCode: first.subjectCode,
+              subjectName: first.subjectName,
+              fromBlock: first.block,
+              fromGroupId: first.groupId,
+              fromGroupCode: first.groupCode,
+              toBlock: second.block,
+            },
+            {
+              subjectCode: second.subjectCode,
+              subjectName: second.subjectName,
+              fromBlock: second.block,
+              fromGroupId: second.groupId,
+              fromGroupCode: second.groupCode,
+              toBlock: third.block,
+            },
+            {
+              subjectCode: third.subjectCode,
+              subjectName: third.subjectName,
+              fromBlock: third.block,
+              fromGroupId: third.groupId,
+              fromGroupCode: third.groupCode,
+              toBlock: first.block,
+            },
+          ];
+
+          const counterClockwise: RotationSpec[] = [
+            {
+              subjectCode: first.subjectCode,
+              subjectName: first.subjectName,
+              fromBlock: first.block,
+              fromGroupId: first.groupId,
+              fromGroupCode: first.groupCode,
+              toBlock: third.block,
+            },
+            {
+              subjectCode: third.subjectCode,
+              subjectName: third.subjectName,
+              fromBlock: third.block,
+              fromGroupId: third.groupId,
+              fromGroupCode: third.groupCode,
+              toBlock: second.block,
+            },
+            {
+              subjectCode: second.subjectCode,
+              subjectName: second.subjectName,
+              fromBlock: second.block,
+              fromGroupId: second.groupId,
+              fromGroupCode: second.groupCode,
+              toBlock: first.block,
+            },
+          ];
+
+          const clockwiseCandidate = buildRotationCandidate(state, student, clockwise, config, offset);
+          if (clockwiseCandidate) {
+            rotations.push(clockwiseCandidate);
+          }
+
+          const counterClockwiseCandidate = buildRotationCandidate(state, student, counterClockwise, config, offset);
+          if (counterClockwiseCandidate) {
+            rotations.push(counterClockwiseCandidate);
+          }
+        }
+      }
+    }
+  });
+
+  rotations.sort((left, right) => {
+    if (left.estimatedScoreDelta !== right.estimatedScoreDelta) {
+      return left.estimatedScoreDelta - right.estimatedScoreDelta;
+    }
+    if (left.steps.length !== right.steps.length) {
+      return left.steps.length - right.steps.length;
+    }
+    return left.studentId.localeCompare(right.studentId, 'nb', { sensitivity: 'base' });
+  });
+
+  return rotations;
+};
+
+const tryStudentRotationImprove = (state: InternalState, config: BalancingConfig, offset: number): boolean => {
+  const bestRotation = generateStudentRotationCandidates(state, config, offset)[0];
+  if (!bestRotation) {
+    return false;
+  }
+
+  return applyStudentRotationToState(
+    state,
+    bestRotation,
+    bestRotation.estimatedScoreDelta,
+    offset,
+    config.classBlockRestrictions
+  );
+};
+
+const repairOvercapacity = (
+  state: InternalState,
+  config: BalancingConfig,
+  offset: number
+): number => {
+  let appliedCount = 0;
+  let improving = true;
+
+  while (improving) {
+    improving = false;
+
+    const baselineSeatCount = computeOvercapSeatCount(state);
+    const baselineRaw = computeOvercapRaw(state);
+
+    if (baselineSeatCount <= 0) {
+      break;
+    }
+
+    const candidateEvaluations = generateAllCandidateMoves(state, config, offset)
+      .filter((candidate) => candidate.priorityTag === 'overcap')
+      .map((candidate) => {
+        const snapshot = cloneState(state);
+        const applied = applyCandidateMoveToState(snapshot, candidate, 'overcap', 0, offset, config.classBlockRestrictions);
+        if (!applied) {
+          return null;
+        }
+
+        const nextSeatCount = computeOvercapSeatCount(snapshot);
+        const nextRaw = computeOvercapRaw(snapshot);
+        const strictImprovement = baselineRaw - nextRaw;
+        const seatImprovement = baselineSeatCount - nextSeatCount;
+
+        if (strictImprovement <= 0 && seatImprovement <= 0) {
+          return null;
+        }
+
+        const scoreDelta = estimateMoveDelta(state, candidate, config, 'overcap', offset);
+        const repeatMoves = state.studentMoveCounts.get(candidate.studentId) || 0;
+        return {
+          candidate,
+          strictImprovement,
+          seatImprovement,
+          scoreDelta,
+          repeatMoves,
+        };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => !!entry)
+      .sort((left, right) => {
+        if (left.strictImprovement !== right.strictImprovement) {
+          return right.strictImprovement - left.strictImprovement;
+        }
+        if (left.seatImprovement !== right.seatImprovement) {
+          return right.seatImprovement - left.seatImprovement;
+        }
+        if (left.repeatMoves !== right.repeatMoves) {
+          return left.repeatMoves - right.repeatMoves;
+        }
+        return compareCandidate(left.candidate, right.candidate);
+      });
+
+    const best = candidateEvaluations[0];
+    if (!best) {
+      break;
+    }
+
+    const committed = applyCandidateMoveToState(
+      state,
+      best.candidate,
+      'overcap',
+      Number.isFinite(best.scoreDelta) ? best.scoreDelta : 0,
+      offset,
+      config.classBlockRestrictions
+    );
+
+    if (!committed) {
+      break;
+    }
+
+    appliedCount += 1;
+    improving = true;
+  }
+
+  return appliedCount;
+};
+
 const trySingleMoveImprove = (state: InternalState, config: BalancingConfig, offset: number): boolean => {
   const candidates = generateAllCandidateMoves(state, config, offset)
     .filter((candidate) => candidate.estimatedScoreDelta < -config.epsilon);
@@ -1060,6 +1521,9 @@ export const localSearchImprove = (
   let improved = true;
   while (improved) {
     improved = trySingleMoveImprove(state, config, offset);
+    if (!improved && ENABLE_CROSS_BLOCK_ROTATIONS) {
+      improved = tryStudentRotationImprove(state, config, offset);
+    }
     if (!improved) {
       break;
     }
@@ -1212,6 +1676,7 @@ const updateSubjectSettingsAssignments = (
   state: InternalState
 ): SubjectSettingsByNameLike => {
   const nextSettings: SubjectSettingsByNameLike = {};
+  const touchedSubjects = new Set<string>();
 
   Object.entries(subjectSettingsByName).forEach(([subject, settings]) => {
     nextSettings[subject] = {
@@ -1223,6 +1688,7 @@ const updateSubjectSettingsAssignments = (
 
   moveRecords.forEach((move) => {
     const subjectName = move.subjectName;
+    touchedSubjects.add(subjectName);
     const source = nextSettings[subjectName] || {
       defaultMax: 30,
       groups: [],
@@ -1243,6 +1709,50 @@ const updateSubjectSettingsAssignments = (
         ...(source.groupStudentAssignments || {}),
         [move.studentId]: groupNode.groupId,
       },
+    };
+  });
+
+  touchedSubjects.forEach((subjectName) => {
+    const subjectCode = mapSubjectToCode(subjectName);
+    const groupsInState = state.groupsBySubject.get(subjectCode) || [];
+    if (groupsInState.length === 0) {
+      return;
+    }
+
+    const existing = nextSettings[subjectName] || {
+      defaultMax: Math.max(...groupsInState.map((group) => group.capacity)),
+      groups: [],
+      groupStudentAssignments: {},
+    };
+
+    const hasPersistedGroups = Array.isArray(existing.groups) && existing.groups.length > 0;
+    if (hasPersistedGroups) {
+      return;
+    }
+
+    const materializedGroups = [...groupsInState]
+      .sort((left, right) => {
+        if (left.block !== right.block) {
+          return left.block - right.block;
+        }
+        if (left.groupCode !== right.groupCode) {
+          return left.groupCode.localeCompare(right.groupCode, 'nb', { sensitivity: 'base' });
+        }
+        return left.groupId.localeCompare(right.groupId, 'nb', { sensitivity: 'base' });
+      })
+      .map((group) => ({
+        id: group.groupId,
+        blokk: `Blokk ${group.block}` as `Blokk ${BlockNumber}`,
+        sourceBlokk: `Blokk ${group.block}` as `Blokk ${BlockNumber}`,
+        enabled: true,
+        max: group.capacity,
+        createdAt: `balanced-${subjectCode}-${group.groupId}`,
+      }));
+
+    nextSettings[subjectName] = {
+      ...existing,
+      defaultMax: existing.defaultMax || Math.max(...materializedGroups.map((group) => group.max)),
+      groups: materializedGroups,
     };
   });
 
@@ -1296,6 +1806,7 @@ export const progressiveHybridBalance = (
   const mergedConfig = mergeConfig(config);
   let state = buildState(rows, subjectSettingsByName, mergedConfig);
   let bestStrictState = cloneState(state);
+  const beforeOvercapSeatCount = computeOvercapSeatCount(state);
 
   const beforeScore = computeScore(state, mergedConfig.weights, state.history);
   const subjectMetricsBefore = collectSubjectMetrics(state);
@@ -1306,17 +1817,20 @@ export const progressiveHybridBalance = (
   let lookaheadRollback = 0;
 
   const startTime = Date.now();
+  const capacityOffsets = buildCapacityOffsetSchedule(mergedConfig.maxRelaxation);
+  const totalBudgetMillis = mergedConfig.maxPassMillis * capacityOffsets.length;
 
-  for (let offset = -mergedConfig.maxRelaxation; offset <= 0; offset += 1) {
-    if (Date.now() - startTime > mergedConfig.maxPassMillis * (mergedConfig.maxRelaxation + 1)) {
+  for (const offset of capacityOffsets) {
+    if (Date.now() - startTime > totalBudgetMillis) {
       break;
     }
 
     passesRun += 1;
+    repairOvercapacity(state, mergedConfig, offset);
     let improving = true;
 
     while (improving) {
-      if (Date.now() - startTime > mergedConfig.maxPassMillis * (mergedConfig.maxRelaxation + 1)) {
+      if (Date.now() - startTime > totalBudgetMillis) {
         improving = false;
         break;
       }
@@ -1358,6 +1872,8 @@ export const progressiveHybridBalance = (
   const diagnostics: BalanceDiagnostics = {
     beforeScore,
     afterScore,
+    beforeOvercapSeatCount,
+    afterOvercapSeatCount: computeOvercapSeatCount(state),
     subjectMetricsBefore,
     subjectMetricsAfter,
     moveCount: state.history.length,

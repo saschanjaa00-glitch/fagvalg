@@ -7,7 +7,7 @@ progressiveHybridBalance(rows, subjectSettings, config):
   state = buildState(rows, subjectSettings, config)
   before = computeScore(state)
 
-  for offset in [-maxRelaxation .. 0]:
+  for offset in [maxRelaxation, maxRelaxation-2, ..., 0]:
     repeat:
       flowNetwork = buildFlowNetwork(state, offset)
       solved = solveFlow(flowNetwork)
@@ -44,7 +44,7 @@ progressiveHybridBalance(rows, subjectSettings, config):
 - extractMovesFromFlow:
   - Stable ordered candidate extraction.
 - applyMoves:
-  - Constraint-checked move commit with strict/relaxed capacity by offset.
+  - Constraint-checked move commit with progressive reduced capacity by offset.
 - localSearchImprove:
   - Single-move hill climbing + lookahead chain trigger.
 - tryLookaheadChain:
@@ -52,7 +52,7 @@ progressiveHybridBalance(rows, subjectSettings, config):
 - repairCollisions:
   - Capacity-respecting collision repair first, least-bad fallback second.
 - progressiveHybridBalance:
-  - Orchestration with progressive capacity schedule and diagnostics.
+  - Orchestration with a capacity schedule that starts below max and increases toward the real max in steps.
 
 ## Complexity Notes
 
