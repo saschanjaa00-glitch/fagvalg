@@ -115,8 +115,8 @@ export const ColumnMapper = ({
                     className={styles.select}
                   >
                     <option value="">-- Ikke tilordnet --</option>
-                    {file.columns.map((col) => (
-                      <option key={col} value={col}>
+                    {file.columns.map((col, index) => (
+                      <option key={`${col}-${index}`} value={col}>
                         {col}
                       </option>
                     ))}

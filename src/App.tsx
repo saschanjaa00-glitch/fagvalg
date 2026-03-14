@@ -563,20 +563,20 @@ function App() {
               <button
                 type="button"
                 role="tab"
-                aria-selected={activeDataTab === 'students'}
-                className={`data-tab ${activeDataTab === 'students' ? 'data-tab-active' : ''}`.trim()}
-                onClick={() => setActiveDataTab('students')}
-              >
-                Elevdata ({mergedData.length} elever)
-              </button>
-              <button
-                type="button"
-                role="tab"
                 aria-selected={activeDataTab === 'elever'}
                 className={`data-tab ${activeDataTab === 'elever' ? 'data-tab-active' : ''}`.trim()}
                 onClick={() => setActiveDataTab('elever')}
               >
                 Elever ({mergedData.length})
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeDataTab === 'students'}
+                className={`data-tab ${activeDataTab === 'students' ? 'data-tab-active' : ''}`.trim()}
+                onClick={() => setActiveDataTab('students')}
+              >
+                Elevtabell ({mergedData.length} elever)
               </button>
             </div>
 
