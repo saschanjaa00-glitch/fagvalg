@@ -103,6 +103,7 @@ function App() {
   const [selectedEleverStudentId, setSelectedEleverStudentId] = useState('');
   const [eleverViewActivationToken, setEleverViewActivationToken] = useState(0);
   const [selectedMergedSubject, setSelectedMergedSubject] = useState('');
+  const [subjectSettingsAutoOpenToken, setSubjectSettingsAutoOpenToken] = useState(0);
   const [undoHistory, setUndoHistory] = useState<PersistedAppState[]>([]);
   const [redoHistory, setRedoHistory] = useState<PersistedAppState[]>([]);
   const [classBlockRestrictions, setClassBlockRestrictions] = useState<ClassBlockRestrictions>(
@@ -433,6 +434,7 @@ function App() {
     setSubjects(tallySubjects(merged));
     setStudentAssignmentChanges([]);
     setActiveDataTab('subjects');
+    setSubjectSettingsAutoOpenToken((prev) => prev + 1);
   };
 
   const closeReloadConfirmModal = () => {
@@ -1503,6 +1505,7 @@ function App() {
                   subjects={subjects}
                   mergedData={mergedData}
                   subjectSettingsByName={subjectSettingsByName}
+                  autoOpenSettingsToken={subjectSettingsAutoOpenToken}
                   onSaveSubjectSettingsByName={handleSaveSubjectSettingsByName}
                   onApplySubjectBlockMoves={handleApplySubjectBlockMoves}
                   onRemoveStudentsFromSubject={handleRemoveStudentsFromSubject}

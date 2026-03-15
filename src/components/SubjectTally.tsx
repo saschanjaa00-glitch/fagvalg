@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import type { SubjectCount, StandardField } from '../utils/excelUtils';
 import { loadXlsx } from '../utils/excelUtils';
 import {
@@ -24,6 +24,7 @@ interface SubjectTallyProps {
   subjects: SubjectCount[];
   mergedData: StandardField[];
   subjectSettingsByName: SubjectSettingsByName;
+  autoOpenSettingsToken?: number;
   onSaveSubjectSettingsByName: (values: SubjectSettingsByName) => void;
   onApplySubjectBlockMoves: (
     subject: string,
@@ -55,6 +56,7 @@ interface OptionRow {
 
 interface SubjectDraft {
   defaultMax: string;
+  groupMaxBySlotKey: Record<string, string>;
 }
 
 interface DeleteGroupConfirmState {
@@ -62,6 +64,14 @@ interface DeleteGroupConfirmState {
   groupId: string;
   blokk: BlokkLabel;
   studentIds: string[];
+}
+
+interface SubjectGroupSlot {
+  slotKey: string;
+  groupId: string;
+  label: string;
+  blokk: BlokkLabel;
+  max: number;
 }
 
 interface PdfGroupCell {
@@ -127,6 +137,7 @@ export const SubjectTally = ({
   subjects,
   mergedData,
   subjectSettingsByName,
+  autoOpenSettingsToken,
   onSaveSubjectSettingsByName,
   onApplySubjectBlockMoves,
   onRemoveStudentsFromSubject,
@@ -135,6 +146,7 @@ export const SubjectTally = ({
   const [showOverfillModal, setShowOverfillModal] = useState(false);
   const [massUpdateMax, setMassUpdateMax] = useState(String(DEFAULT_MAX_PER_SUBJECT));
   const [draftsBySubject, setDraftsBySubject] = useState<Record<string, SubjectDraft>>({});
+  const [expandedSettingsBySubject, setExpandedSettingsBySubject] = useState<Record<string, boolean>>({});
   const [copiedSubject, setCopiedSubject] = useState<string | null>(null);
   const [draggedSubject, setDraggedSubject] = useState<string | null>(null);
   const [draggedGroupId, setDraggedGroupId] = useState<string | null>(null);
@@ -259,6 +271,23 @@ export const SubjectTally = ({
       groupsByTarget,
       activeTotal: getActiveTotal(groupsByTarget),
     };
+  };
+
+  const getGroupSlotsForSubject = (subject: string): SubjectGroupSlot[] => {
+    const breakdown = getBlokkBreakdown(subject);
+    const { groupsByTarget } = getResolvedForSubject(subject, breakdown);
+
+    return BLOKK_LABELS.flatMap((blokk) =>
+      groupsByTarget[blokk]
+        .filter(shouldShowGroup)
+        .map((group) => ({
+          slotKey: `${blokk}|${group.label}`,
+          groupId: group.id,
+          label: group.label,
+          blokk,
+          max: group.max,
+        }))
+    );
   };
 
   const saveSubjectGroups = (subject: string, groups: SubjectGroup[], defaultMax?: number) => {
@@ -832,19 +861,38 @@ export const SubjectTally = ({
 
   const openOverfillModal = () => {
     const nextDrafts: Record<string, SubjectDraft> = {};
+    const nextExpanded: Record<string, boolean> = {};
 
     subjects.forEach((item) => {
       const breakdown = getBlokkBreakdown(item.subject);
       const saved = getSettingsForSubject(subjectSettingsByName, item.subject, breakdown);
+      const slots = getGroupSlotsForSubject(item.subject);
+      const groupMaxBySlotKey = Object.fromEntries(
+        slots.map((slot) => [slot.slotKey, String(slot.max)])
+      ) as Record<string, string>;
+
       nextDrafts[item.subject] = {
         defaultMax: String(saved.defaultMax),
+        groupMaxBySlotKey,
       };
+      nextExpanded[item.subject] = false;
     });
 
     setDraftsBySubject(nextDrafts);
+    setExpandedSettingsBySubject(nextExpanded);
     setMassUpdateMax(String(DEFAULT_MAX_PER_SUBJECT));
     setShowOverfillModal(true);
   };
+
+  useEffect(() => {
+    if (!autoOpenSettingsToken || subjects.length === 0) {
+      return;
+    }
+
+    openOverfillModal();
+    // We intentionally trigger on token changes from App to open once per load event.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpenSettingsToken]);
 
   const applyMassUpdate = () => {
     const safeValue = sanitizeCount(massUpdateMax);
@@ -858,6 +906,7 @@ export const SubjectTally = ({
         }
         next[item.subject] = {
           defaultMax: String(safeValue),
+          groupMaxBySlotKey: { ...(draft.groupMaxBySlotKey || {}) },
         };
       });
       return next;
@@ -876,9 +925,21 @@ export const SubjectTally = ({
       const breakdown = getBlokkBreakdown(item.subject);
       const current = getSettingsForSubject(subjectSettingsByName, item.subject, breakdown);
       const defaultMax = sanitizeCount(draft.defaultMax);
+      const slotByGroupId = new Map<string, string>(
+        getGroupSlotsForSubject(item.subject).map((slot) => [slot.groupId, slot.slotKey])
+      );
+      const groupMaxBySlotKey = draft.groupMaxBySlotKey || {};
 
       // Keep individual group max values intact. Only replace values equal to prior default.
       const nextGroups = (current.groups || []).map((group) => {
+        const slotKey = slotByGroupId.get(group.id);
+        if (slotKey && Object.prototype.hasOwnProperty.call(groupMaxBySlotKey, slotKey)) {
+          return {
+            ...group,
+            max: sanitizeCount(groupMaxBySlotKey[slotKey], defaultMax),
+          };
+        }
+
         if (group.max === current.defaultMax) {
           return {
             ...group,
@@ -1216,7 +1277,7 @@ export const SubjectTally = ({
       {showOverfillModal && (
         <div className={styles.modalOverlay} onClick={() => setShowOverfillModal(false)}>
           <div className={styles.modal} onClick={(event) => event.stopPropagation()}>
-            <h4>Merk overfylt</h4>
+            <h4>Innstillinger - Sett maks antall elever per gruppe</h4>
             <div className={styles.massUpdateRow}>
               <label htmlFor="mass-update-max">Masseoppdater standard maks</label>
               <input
@@ -1228,12 +1289,16 @@ export const SubjectTally = ({
                 className={styles.maxInput}
               />
               <button type="button" className={styles.modalSecondaryBtn} onClick={applyMassUpdate}>
-                Bruk pa alle
+                Bruk på alle
               </button>
             </div>
 
             <div className={styles.modalTableWrap}>
               <table className={styles.modalTable}>
+                <colgroup>
+                  <col className={styles.modalColSubject} />
+                  <col className={styles.modalColMax} />
+                </colgroup>
                 <thead>
                   <tr>
                     <th>Fag</th>
@@ -1248,27 +1313,99 @@ export const SubjectTally = ({
                       return null;
                     }
 
+                    const groupSlots = getGroupSlotsForSubject(item.subject);
+                    const hasCustomGroupMax = groupSlots.some((slot) => {
+                      const groupDraftValue = draft.groupMaxBySlotKey[slot.slotKey] ?? String(slot.max);
+                      return sanitizeCount(groupDraftValue, slot.max) !== sanitizeCount(draft.defaultMax, slot.max);
+                    });
+                    const isExpanded = !!expandedSettingsBySubject[item.subject];
+
                     return (
-                      <tr key={item.subject}>
-                        <td>{item.subject}</td>
-                        <td>
-                          <input
-                            type="number"
-                            min="0"
-                            value={draft.defaultMax}
-                            onChange={(event) => {
-                              const value = event.target.value;
-                              setDraftsBySubject((prev) => ({
-                                ...prev,
-                                [item.subject]: {
-                                  defaultMax: value,
-                                },
-                              }));
-                            }}
-                            className={styles.maxInput}
-                          />
-                        </td>
-                      </tr>
+                      <Fragment key={item.subject}>
+                        <tr key={item.subject}>
+                          <td>
+                            <button
+                              type="button"
+                              className={styles.modalSubjectToggle}
+                              onClick={() => {
+                                setExpandedSettingsBySubject((prev) => ({
+                                  ...prev,
+                                  [item.subject]: !isExpanded,
+                                }));
+                              }}
+                            >
+                              <span className={styles.modalChevron}>{isExpanded ? '▼' : '▶'}</span>
+                              <span>{item.subject}</span>
+                            </button>
+                          </td>
+                          <td>
+                            <div className={styles.standardMaxCell}>
+                              <input
+                                type="number"
+                                min="0"
+                                value={draft.defaultMax}
+                                onChange={(event) => {
+                                  const value = event.target.value;
+                                  setDraftsBySubject((prev) => ({
+                                    ...prev,
+                                    [item.subject]: {
+                                      defaultMax: value,
+                                      groupMaxBySlotKey: { ...(prev[item.subject]?.groupMaxBySlotKey || {}) },
+                                    },
+                                  }));
+                                }}
+                                className={styles.maxInput}
+                              />
+                              {hasCustomGroupMax && (
+                                <span className={styles.modalWarningWrap}>
+                                  <span
+                                    className={styles.modalWarningBadge}
+                                    title="Én eller flere grupper avviker standard maks"
+                                    aria-label="Én eller flere grupper avviker standard maks"
+                                  >
+                                    ⚠
+                                  </span>
+                                  <span className={styles.modalWarningText}>Én eller flere grupper avviker standard maks</span>
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                        {isExpanded && groupSlots.map((slot) => {
+                          const value = draft.groupMaxBySlotKey[slot.slotKey] ?? String(slot.max);
+                          const isDifferentFromStandard =
+                            sanitizeCount(value, slot.max) !== sanitizeCount(draft.defaultMax, slot.max);
+                          return (
+                            <tr
+                              key={`${item.subject}-${slot.slotKey}`}
+                              className={`${styles.modalGroupRow} ${isDifferentFromStandard ? styles.modalGroupRowWarning : ''}`.trim()}
+                            >
+                              <td className={styles.modalGroupLabelCell}>- {slot.label} ({slot.blokk})</td>
+                              <td>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={value}
+                                  onChange={(event) => {
+                                    const nextValue = event.target.value;
+                                    setDraftsBySubject((prev) => ({
+                                      ...prev,
+                                      [item.subject]: {
+                                        defaultMax: prev[item.subject]?.defaultMax || draft.defaultMax,
+                                        groupMaxBySlotKey: {
+                                          ...(prev[item.subject]?.groupMaxBySlotKey || {}),
+                                          [slot.slotKey]: nextValue,
+                                        },
+                                      },
+                                    }));
+                                  }}
+                                  className={`${styles.maxInput} ${isDifferentFromStandard ? styles.maxInputWarning : ''}`.trim()}
+                                />
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </Fragment>
                     );
                   })}
                 </tbody>
