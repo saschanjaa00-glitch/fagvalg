@@ -104,6 +104,7 @@ function App() {
   const [eleverViewActivationToken, setEleverViewActivationToken] = useState(0);
   const [selectedMergedSubject, setSelectedMergedSubject] = useState('');
   const [subjectSettingsAutoOpenToken, setSubjectSettingsAutoOpenToken] = useState(0);
+  const [subjectSettingsAutoOpenHandledToken, setSubjectSettingsAutoOpenHandledToken] = useState(0);
   const [undoHistory, setUndoHistory] = useState<PersistedAppState[]>([]);
   const [redoHistory, setRedoHistory] = useState<PersistedAppState[]>([]);
   const [classBlockRestrictions, setClassBlockRestrictions] = useState<ClassBlockRestrictions>(
@@ -1505,7 +1506,14 @@ function App() {
                   subjects={subjects}
                   mergedData={mergedData}
                   subjectSettingsByName={subjectSettingsByName}
-                  autoOpenSettingsToken={subjectSettingsAutoOpenToken}
+                  autoOpenSettingsToken={
+                    subjectSettingsAutoOpenToken > subjectSettingsAutoOpenHandledToken
+                      ? subjectSettingsAutoOpenToken
+                      : undefined
+                  }
+                  onAutoOpenSettingsHandled={(token) => {
+                    setSubjectSettingsAutoOpenHandledToken((prev) => (token > prev ? token : prev));
+                  }}
                   onSaveSubjectSettingsByName={handleSaveSubjectSettingsByName}
                   onApplySubjectBlockMoves={handleApplySubjectBlockMoves}
                   onRemoveStudentsFromSubject={handleRemoveStudentsFromSubject}

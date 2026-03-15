@@ -25,6 +25,7 @@ interface SubjectTallyProps {
   mergedData: StandardField[];
   subjectSettingsByName: SubjectSettingsByName;
   autoOpenSettingsToken?: number;
+  onAutoOpenSettingsHandled?: (token: number) => void;
   onSaveSubjectSettingsByName: (values: SubjectSettingsByName) => void;
   onApplySubjectBlockMoves: (
     subject: string,
@@ -138,6 +139,7 @@ export const SubjectTally = ({
   mergedData,
   subjectSettingsByName,
   autoOpenSettingsToken,
+  onAutoOpenSettingsHandled,
   onSaveSubjectSettingsByName,
   onApplySubjectBlockMoves,
   onRemoveStudentsFromSubject,
@@ -890,6 +892,7 @@ export const SubjectTally = ({
     }
 
     openOverfillModal();
+    onAutoOpenSettingsHandled?.(autoOpenSettingsToken);
     // We intentionally trigger on token changes from App to open once per load event.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoOpenSettingsToken]);
