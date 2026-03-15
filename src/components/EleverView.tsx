@@ -61,6 +61,11 @@ interface EditAssignmentState {
   selectedBlokk: string;
 }
 
+interface SubjectOptionLabel {
+  value: string;
+  label: string;
+}
+
 const parseSubjects = (value: string | null): string[] => {
   if (!value) {
     return [];
@@ -587,6 +592,45 @@ export const EleverView = ({
     return filteredStudents.find((entry) => entry.studentId === selectedStudentId) || null;
   }, [filteredStudents, selectedStudentId]);
 
+  const selectedStudentReserveLabel = useMemo(() => {
+    if (!selectedStudentEntry) {
+      return '';
+    }
+
+    return parseSubjects(selectedStudentEntry.student.reserve).join(', ');
+  }, [selectedStudentEntry]);
+
+  const buildSubjectOptionLabel = (subject: string, ignoreAssignedSubject?: string): string => {
+    const alreadyAssigned = selectedStudentEntry?.assignments.some((assignment) => {
+      if (!isSameSubject(assignment.subject, subject)) {
+        return false;
+      }
+
+      if (ignoreAssignedSubject && isSameSubject(ignoreAssignedSubject, assignment.subject)) {
+        return false;
+      }
+
+      return true;
+    }) || false;
+
+    if (alreadyAssigned) {
+      return `${subject} (Reservefag allerede tildelt)`;
+    }
+
+    if (selectedStudentReserveLabel) {
+      return `${subject} (Reservefag: ${selectedStudentReserveLabel})`;
+    }
+
+    return subject;
+  };
+
+  const addModalSubjectOptions = useMemo(() => {
+    return sortedSubjectOptions.map((subject) => ({
+      value: subject,
+      label: buildSubjectOptionLabel(subject),
+    }));
+  }, [sortedSubjectOptions, selectedStudentEntry, selectedStudentReserveLabel]);
+
   const selectedWarningRows = useMemo(() => {
     if (!selectedStudentEntry) {
       return [] as Array<{ type: WarningType; title: string; ignored: WarningIgnoreEntry | null }>;
@@ -888,8 +932,13 @@ export const EleverView = ({
       set.add(editAssignment.fromSubject);
     }
 
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'nb', { sensitivity: 'base' }));
-  }, [subjectOptions, editAssignment]);
+    return Array.from(set)
+      .sort((a, b) => a.localeCompare(b, 'nb', { sensitivity: 'base' }))
+      .map((subject): SubjectOptionLabel => ({
+        value: subject,
+        label: buildSubjectOptionLabel(subject, editAssignment?.fromSubject),
+      }));
+  }, [subjectOptions, editAssignment, selectedStudentEntry, selectedStudentReserveLabel]);
 
   const modalBlokkOptions = useMemo(() => {
     if (!editAssignment) {
@@ -1135,8 +1184,8 @@ export const EleverView = ({
                         onChange={(event) => handleModalSubjectChange(event.target.value)}
                       >
                         {modalSubjectOptions.map((subject) => (
-                          <option key={`edit-subject-${subject}`} value={subject}>
-                            {subject}
+                          <option key={`edit-subject-${subject.value}`} value={subject.value}>
+                            {subject.label}
                           </option>
                         ))}
                       </select>
@@ -1199,9 +1248,9 @@ export const EleverView = ({
                         value={subjectToAdd}
                         onChange={(event) => setSubjectToAdd(event.target.value)}
                       >
-                        {sortedSubjectOptions.map((subject) => (
-                          <option key={`add-subject-${subject}`} value={subject}>
-                            {subject}
+                        {addModalSubjectOptions.map((subject) => (
+                          <option key={`add-subject-${subject.value}`} value={subject.value}>
+                            {subject.label}
                           </option>
                         ))}
                       </select>
