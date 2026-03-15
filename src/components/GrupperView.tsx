@@ -88,6 +88,10 @@ const compareText = (left: string, right: string): number => {
   return left.localeCompare(right, 'nb', { sensitivity: 'base', numeric: true });
 };
 
+const normalizeSubjectKey = (value: string): string => {
+  return value.trim().toLocaleLowerCase('nb');
+};
+
 const inferClassLevel = (classGroup: string | null | undefined): string | null => {
   const normalized = (classGroup || '').trim().toUpperCase();
   if (!normalized) {
@@ -265,24 +269,42 @@ export const GrupperView = ({
     return map;
   }, [changeLog]);
 
-  const groupRows = useMemo(() => {
-    const subjectsInData = new Set<string>(subjectOptions);
+  const latestChangesBySubject = useMemo(() => {
+    const grouped = new Map<string, StudentAssignmentChange[]>();
+
+    latestChangeByStudentSubject.forEach((change) => {
+      const key = normalizeSubjectKey(change.subject);
+      const list = grouped.get(key);
+      if (list) {
+        list.push(change);
+        return;
+      }
+
+      grouped.set(key, [change]);
+    });
+
+    return grouped;
+  }, [latestChangeByStudentSubject]);
+
+  const subjectsInData = useMemo(() => {
+    const subjectSet = new Set<string>(subjectOptions);
 
     data.forEach((student) => {
       for (let blokkNumber = 1; blokkNumber <= visibleBlokkCount; blokkNumber += 1) {
         parseSubjects(student[getBlokkKey(blokkNumber)] as string | null).forEach((subject) => {
-          subjectsInData.add(subject);
+          subjectSet.add(subject);
         });
       }
     });
 
-    Object.keys(subjectSettingsByName).forEach((subject) => subjectsInData.add(subject));
+    Object.keys(subjectSettingsByName).forEach((subject) => subjectSet.add(subject));
+    return Array.from(subjectSet).sort(compareText);
+  }, [data, subjectOptions, subjectSettingsByName, visibleBlokkCount]);
 
+  const groupRows = useMemo(() => {
     const rows: GroupRow[] = [];
 
-    Array.from(subjectsInData)
-      .sort(compareText)
-      .forEach((subject) => {
+    subjectsInData.forEach((subject) => {
         const breakdown: Record<BlokkLabel, number> = {
           'Blokk 1': 0,
           'Blokk 2': 0,
@@ -327,7 +349,9 @@ export const GrupperView = ({
                 return !!change && change.toBlokk === getBlokkNumber(blokkLabel);
               }).length;
 
-              const recentOutCount = Array.from(latestChangeByStudentSubject.values()).filter((entry) => {
+              const changesForSubject = latestChangesBySubject.get(normalizeSubjectKey(subject)) || [];
+
+              const recentOutCount = changesForSubject.filter((entry) => {
                 return isSameSubject(entry.subject, subject)
                   && entry.fromBlokk === getBlokkNumber(blokkLabel)
                   && entry.toBlokk !== getBlokkNumber(blokkLabel)
@@ -349,10 +373,10 @@ export const GrupperView = ({
               });
             });
         });
-      });
+    });
 
     return rows;
-  }, [data, latestChangeByStudentSubject, subjectOptions, subjectSettingsByName, visibleBlokkCount]);
+  }, [data, latestChangeByStudentSubject, latestChangesBySubject, subjectSettingsByName, subjectsInData, visibleBlokkCount]);
 
   const sortedGroupRows = useMemo(() => {
     const rows = [...groupRows];

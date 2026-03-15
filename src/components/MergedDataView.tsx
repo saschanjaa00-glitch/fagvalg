@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { StandardField } from '../utils/excelUtils';
 import { getBlokkFields } from '../utils/excelUtils';
 import styles from './MergedDataView.module.css';
@@ -21,7 +21,7 @@ export const MergedDataView = ({
   blokkCount
 }: MergedDataViewProps) => {
   const [showReserve, setShowReserve] = useState(true);
-  const blokkFields = getBlokkFields(blokkCount);
+  const blokkFields = useMemo(() => getBlokkFields(blokkCount), [blokkCount]);
   
   const initializeColumnFilters = () => {
     const filters: Record<string, string[]> = {
@@ -47,8 +47,8 @@ export const MergedDataView = ({
     return inputs;
   };
 
-  const [columnFilters, setColumnFilters] = useState<Record<string, string[]>>(initializeColumnFilters());
-  const [filterInputs, setFilterInputs] = useState<Record<string, string>>(initializeFilterInputs());
+  const [columnFilters, setColumnFilters] = useState<Record<string, string[]>>(() => initializeColumnFilters());
+  const [filterInputs, setFilterInputs] = useState<Record<string, string>>(() => initializeFilterInputs());
 
   const addFilter = (column: string, value: string) => {
     const trimmed = value.trim();
@@ -113,24 +113,28 @@ export const MergedDataView = ({
     );
   };
 
-  const filteredData = data.filter(row => {
-    const baseMatch =
-      columnMatches(row.navn, columnFilters.navn, 'navn') &&
-      columnMatches(row.klasse, columnFilters.klasse, 'klasse') &&
-      columnMatches(row.reserve, columnFilters.reserve, 'reserve');
-    
-    if (!baseMatch) return false;
-    
-    // Check dynamic blokk fields
-    for (const field of blokkFields) {
-      const value = row[field as keyof StandardField] as string | null;
-      if (!columnMatches(value, columnFilters[field], field)) {
+  const filteredData = useMemo(() => {
+    return data.filter((row) => {
+      const baseMatch =
+        columnMatches(row.navn, columnFilters.navn, 'navn')
+        && columnMatches(row.klasse, columnFilters.klasse, 'klasse')
+        && columnMatches(row.reserve, columnFilters.reserve, 'reserve');
+
+      if (!baseMatch) {
         return false;
       }
-    }
-    
-    return true;
-  });
+
+      // Check dynamic blokk fields
+      for (const field of blokkFields) {
+        const value = row[field as keyof StandardField] as string | null;
+        if (!columnMatches(value, columnFilters[field], field)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [blokkFields, columnFilters, data]);
 
   const renderSubjectCell = (value: string | null) => {
     if (!value) {

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { StandardField } from '../utils/excelUtils';
 import {
   DEFAULT_BALANCING_CONFIG,
@@ -62,8 +62,22 @@ const parseSubjects = (value: string | null): string[] => {
     .filter((part) => part.length > 0);
 };
 
+const ALL_BLOCKS: BlockNumber[] = [1, 2, 3, 4];
+
 const normalizeRestrictions = (input: ClassBlockRestrictions): ClassBlockRestrictions => {
-  const next: ClassBlockRestrictions = { ...DEFAULT_CLASS_BLOCK_RESTRICTIONS };
+  const next: ClassBlockRestrictions = {
+    VG1: { 1: false, 2: false, 3: false, 4: false },
+    VG2: { 1: false, 2: false, 3: false, 4: false },
+    VG3: { 1: false, 2: false, 3: false, 4: false },
+  };
+
+  Object.entries(DEFAULT_CLASS_BLOCK_RESTRICTIONS).forEach(([classKey, map]) => {
+    next[classKey] = {
+      ...(next[classKey] || {}),
+      ...(map || {}),
+    };
+  });
+
   Object.entries(input).forEach(([classKey, map]) => {
     next[classKey] = {
       ...(next[classKey] || {}),
@@ -100,6 +114,7 @@ const inferClassLevel = (classGroup: string | null | undefined): string | null =
 
 type BalancePresetMode = 'even' | 'underMax' | 'advanced';
 
+const EVEN_PRESET_MAX_RELAXATION = 20;
 const EVEN_BALANCE_OFFSETS: number[] = [20, 15, 10, 8, 6, 4, 2, 0];
 
 export const BalanseringView = ({
@@ -112,7 +127,7 @@ export const BalanseringView = ({
   onApplyResult,
 }: BalanseringViewProps) => {
   const [weights, setWeights] = useState<BalancingWeights>(DEFAULT_BALANCING_CONFIG.weights);
-  const [maxRelaxation, setMaxRelaxation] = useState(String(DEFAULT_BALANCING_CONFIG.maxRelaxation));
+  const [maxRelaxation, setMaxRelaxation] = useState(String(EVEN_PRESET_MAX_RELAXATION));
   const [maxPassMillis, setMaxPassMillis] = useState(String(DEFAULT_BALANCING_CONFIG.maxPassMillis));
   const [maxLookaheadAttempts, setMaxLookaheadAttempts] = useState(String(DEFAULT_BALANCING_CONFIG.maxLookaheadAttempts));
   const [maxDepth2Chains, setMaxDepth2Chains] = useState(String(DEFAULT_BALANCING_CONFIG.maxDepth2Chains));
@@ -152,6 +167,19 @@ export const BalanseringView = ({
     return Array.from(subjects).sort((left, right) => left.localeCompare(right, 'nb', { sensitivity: 'base' }));
   }, [mergedData, subjectSettingsByName]);
 
+  const hasAnyAllowedRestriction = useMemo(() => {
+    return visibleClassLevels.some((classKey) => {
+      return ALL_BLOCKS.some((block) => effectiveRestrictions[classKey]?.[block] ?? false);
+    });
+  }, [effectiveRestrictions, visibleClassLevels]);
+
+  useEffect(() => {
+    if (!hasAnyAllowedRestriction) {
+      setParametersExpanded(false);
+      setExcludedSubjectsExpanded(false);
+    }
+  }, [hasAnyAllowedRestriction]);
+
   const runBalancing = () => {
     if (mergedData.length === 0) {
       setStatusMessage('Ingen elevdata a balansere. Last inn data forst.');
@@ -165,7 +193,7 @@ export const BalanseringView = ({
 
     const effectiveMaxRelaxation =
       presetMode === 'even'
-        ? 20
+        ? EVEN_PRESET_MAX_RELAXATION
         : presetMode === 'underMax'
           ? 2
           : parsedMaxRelaxation;
@@ -218,7 +246,12 @@ export const BalanseringView = ({
   };
 
   const allowAll = () => {
-    onRestrictionsChange({});
+    const next = visibleClassLevels.reduce<ClassBlockRestrictions>((acc, classKey) => {
+      acc[classKey] = { 1: true, 2: true, 3: true, 4: true };
+      return acc;
+    }, {});
+
+    onRestrictionsChange(next);
   };
 
   const toggleExcludedSubject = (subject: string, excluded: boolean) => {
@@ -242,18 +275,14 @@ export const BalanseringView = ({
     setPresetMode(mode);
 
     if (mode === 'even') {
-      setMaxRelaxation('20');
-      if (!parametersExpanded) {
-        setParametersExpanded(false);
-      }
+      setMaxRelaxation(String(EVEN_PRESET_MAX_RELAXATION));
+      setParametersExpanded(false);
       return;
     }
 
     if (mode === 'underMax') {
       setMaxRelaxation('2');
-      if (!parametersExpanded) {
-        setParametersExpanded(false);
-      }
+      setParametersExpanded(false);
       return;
     }
 
@@ -293,7 +322,7 @@ export const BalanseringView = ({
                   <tr key={classKey}>
                     <td>{classKey}</td>
                     {([1, 2, 3, 4] as BlockNumber[]).map((block) => {
-                      const allowed = effectiveRestrictions[classKey]?.[block] ?? true;
+                      const allowed = effectiveRestrictions[classKey]?.[block] ?? false;
                       return (
                         <td key={`${classKey}-${block}`}>
                           <button
@@ -316,11 +345,12 @@ export const BalanseringView = ({
           </button>
         </div>
 
-        <div className={styles.presetRow}>
+        <div className={`${styles.presetRow} ${!hasAnyAllowedRestriction ? styles.disabledSection : ''}`.trim()}>
           <button
             type="button"
             className={`${styles.presetBtn} ${presetMode === 'even' ? styles.presetBtnActive : ''}`.trim()}
             onClick={() => selectPreset('even')}
+            disabled={!hasAnyAllowedRestriction}
           >
             Balanser mest mulig jevnt
           </button>
@@ -328,6 +358,7 @@ export const BalanseringView = ({
             type="button"
             className={`${styles.presetBtn} ${presetMode === 'underMax' ? styles.presetBtnActive : ''}`.trim()}
             onClick={() => selectPreset('underMax')}
+            disabled={!hasAnyAllowedRestriction}
           >
             Få antall under maks
           </button>
@@ -335,24 +366,26 @@ export const BalanseringView = ({
             type="button"
             className={`${styles.presetBtn} ${presetMode === 'advanced' ? styles.presetBtnActive : ''}`.trim()}
             onClick={() => selectPreset('advanced')}
+            disabled={!hasAnyAllowedRestriction}
           >
             Avansert
           </button>
         </div>
 
-        <div className={styles.constraintsBox}>
+        <div className={`${styles.constraintsBox} ${!hasAnyAllowedRestriction ? styles.disabledSection : ''}`.trim()}>
           <button
             type="button"
             className={styles.collapsibleHeaderBtn}
             onClick={() => setParametersExpanded((prev) => !prev)}
             aria-expanded={parametersExpanded}
+            disabled={!hasAnyAllowedRestriction}
           >
             <span className={styles.chevron}>{parametersExpanded ? '▼' : '▶'}</span>
             <span>Parametere</span>
           </button>
 
           {parametersExpanded && (
-            <fieldset className={styles.parametersFieldset} disabled={presetMode !== 'advanced'}>
+            <fieldset className={styles.parametersFieldset} disabled={!hasAnyAllowedRestriction || presetMode !== 'advanced'}>
               {presetMode !== 'advanced' && (
                 <p className={styles.parametersHint}>Velg Avansert for a redigere parameterne.</p>
               )}
@@ -492,13 +525,18 @@ export const BalanseringView = ({
           )}
         </div>
 
+        {!hasAnyAllowedRestriction && (
+          <p className={styles.restrictionNotice}>Velg minst én blokk som Tillatt for å aktivere balanseringsinnstillinger.</p>
+        )}
+
         {availableSubjects.length > 0 && (
-          <div className={styles.constraintsBox}>
+          <div className={`${styles.constraintsBox} ${!hasAnyAllowedRestriction ? styles.disabledSection : ''}`.trim()}>
             <button
               type="button"
               className={styles.collapsibleHeaderBtn}
               onClick={() => setExcludedSubjectsExpanded((prev) => !prev)}
               aria-expanded={excludedSubjectsExpanded}
+              disabled={!hasAnyAllowedRestriction}
             >
               <span className={styles.chevron}>{excludedSubjectsExpanded ? '▼' : '▶'}</span>
               <span>Utelukk fag fra balansering</span>
@@ -510,7 +548,7 @@ export const BalanseringView = ({
                   <p title={SETTING_DESCRIPTIONS.excludedSubjects}>
                     Utelukkede fag blir ikke flyttet og teller ikke med i score, overkapasitet eller fagmetrikker.
                   </p>
-                  <button type="button" className={styles.secondaryBtn} onClick={clearExcludedSubjects}>
+                  <button type="button" className={styles.secondaryBtn} onClick={clearExcludedSubjects} disabled={!hasAnyAllowedRestriction}>
                     Nullstill fagvalg
                   </button>
                 </div>
@@ -525,6 +563,7 @@ export const BalanseringView = ({
                           checked={isExcluded}
                           title={SETTING_DESCRIPTIONS.excludedSubjects}
                           onChange={(event) => toggleExcludedSubject(subject, event.target.checked)}
+                          disabled={!hasAnyAllowedRestriction}
                         />
                         <span>{subject}</span>
                       </label>
@@ -536,8 +575,14 @@ export const BalanseringView = ({
           </div>
         )}
 
-        <div className={styles.actionRow}>
-          <button type="button" className={styles.primaryBtn} onClick={runBalancing}>
+        <div className={`${styles.actionRow} ${!hasAnyAllowedRestriction ? styles.disabledSection : ''}`.trim()}>
+          <button
+            type="button"
+            className={styles.primaryBtn}
+            onClick={runBalancing}
+            disabled={!hasAnyAllowedRestriction}
+            title={!hasAnyAllowedRestriction ? 'Aktiver minst én blokk først' : undefined}
+          >
             Kjør balansering
           </button>
           {statusMessage && <span className={styles.status}>{statusMessage}</span>}

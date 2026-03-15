@@ -36,11 +36,6 @@ interface SubjectTallyProps {
   onOpenStudentCard: (studentId: string) => void;
 }
 
-interface MathOptionCount {
-  label: string;
-  count: number;
-}
-
 interface ForeignLanguageOptionCount {
   label: string;
   count: number;
@@ -120,8 +115,8 @@ const parseForeignLanguageChoices = (value: string | null): string[] => {
     .filter((part) => part.length > 0);
 };
 
-const isSameSubject = (left: string, right: string): boolean => {
-  return left.localeCompare(right, 'nb', { sensitivity: 'base' }) === 0;
+const normalizeSubjectKey = (value: string): string => {
+  return value.trim().toLocaleLowerCase('nb');
 };
 
 const getStudentId = (student: StandardField, index: number): string => {
@@ -149,31 +144,43 @@ export const SubjectTally = ({
   const [expandedMathOption, setExpandedMathOption] = useState<string | null>(null);
   const [expandedForeignOption, setExpandedForeignOption] = useState<string | null>(null);
 
-  const getBlokkBreakdown = (subject: string): Record<BlokkLabel, number> => {
-    const blokkCounts: Record<BlokkLabel, number> = {
-      'Blokk 1': 0,
-      'Blokk 2': 0,
-      'Blokk 3': 0,
-      'Blokk 4': 0,
+  const subjectStatsByKey = useMemo(() => {
+    const stats = new Map<
+      string,
+      {
+        breakdown: Record<BlokkLabel, number>;
+        idsByBlokk: StudentIdsByBlokk;
+      }
+    >();
+
+    const ensureStats = (subject: string) => {
+      const key = normalizeSubjectKey(subject);
+      if (!stats.has(key)) {
+        stats.set(key, {
+          breakdown: {
+            'Blokk 1': 0,
+            'Blokk 2': 0,
+            'Blokk 3': 0,
+            'Blokk 4': 0,
+          },
+          idsByBlokk: {
+            'Blokk 1': [],
+            'Blokk 2': [],
+            'Blokk 3': [],
+            'Blokk 4': [],
+          },
+        });
+      }
+
+      return stats.get(key)!;
     };
 
-    mergedData.forEach((student) => {
-      if (student.blokk1?.split(/[,;]/).map((s) => s.trim()).includes(subject)) blokkCounts['Blokk 1'] += 1;
-      if (student.blokk2?.split(/[,;]/).map((s) => s.trim()).includes(subject)) blokkCounts['Blokk 2'] += 1;
-      if (student.blokk3?.split(/[,;]/).map((s) => s.trim()).includes(subject)) blokkCounts['Blokk 3'] += 1;
-      if (student.blokk4?.split(/[,;]/).map((s) => s.trim()).includes(subject)) blokkCounts['Blokk 4'] += 1;
+    subjects.forEach((item) => {
+      ensureStats(item.subject);
     });
-
-    return blokkCounts;
-  };
-
-  const getStudentIdsByBlokk = (subject: string): StudentIdsByBlokk => {
-    const idsByBlokk: StudentIdsByBlokk = {
-      'Blokk 1': [],
-      'Blokk 2': [],
-      'Blokk 3': [],
-      'Blokk 4': [],
-    };
+    Object.keys(subjectSettingsByName).forEach((subject) => {
+      ensureStats(subject);
+    });
 
     mergedData.forEach((student, index) => {
       const studentId = getStudentId(student, index);
@@ -186,14 +193,53 @@ export const SubjectTally = ({
       ];
 
       subjectByBlokk.forEach(({ label, value }) => {
-        const subjects = parseSubjects(value);
-        if (subjects.some((item) => isSameSubject(item, subject))) {
-          idsByBlokk[label].push(studentId);
-        }
+        parseSubjects(value).forEach((subject) => {
+          const subjectStats = ensureStats(subject);
+          subjectStats.breakdown[label] += 1;
+          subjectStats.idsByBlokk[label].push(studentId);
+        });
       });
     });
 
-    return idsByBlokk;
+    return stats;
+  }, [mergedData, subjectSettingsByName, subjects]);
+
+  const getBlokkBreakdown = (subject: string): Record<BlokkLabel, number> => {
+    const entry = subjectStatsByKey.get(normalizeSubjectKey(subject));
+    if (!entry) {
+      return {
+        'Blokk 1': 0,
+        'Blokk 2': 0,
+        'Blokk 3': 0,
+        'Blokk 4': 0,
+      };
+    }
+
+    return {
+      'Blokk 1': entry.breakdown['Blokk 1'],
+      'Blokk 2': entry.breakdown['Blokk 2'],
+      'Blokk 3': entry.breakdown['Blokk 3'],
+      'Blokk 4': entry.breakdown['Blokk 4'],
+    };
+  };
+
+  const getStudentIdsByBlokk = (subject: string): StudentIdsByBlokk => {
+    const entry = subjectStatsByKey.get(normalizeSubjectKey(subject));
+    if (!entry) {
+      return {
+        'Blokk 1': [],
+        'Blokk 2': [],
+        'Blokk 3': [],
+        'Blokk 4': [],
+      };
+    }
+
+    return {
+      'Blokk 1': [...entry.idsByBlokk['Blokk 1']],
+      'Blokk 2': [...entry.idsByBlokk['Blokk 2']],
+      'Blokk 3': [...entry.idsByBlokk['Blokk 3']],
+      'Blokk 4': [...entry.idsByBlokk['Blokk 4']],
+    };
   };
 
   const getResolvedForSubject = (subject: string, breakdown: Record<BlokkLabel, number>) => {
@@ -722,17 +768,22 @@ export const SubjectTally = ({
     return sortOptionStudents(students);
   };
 
-  const mathOptionCounts: MathOptionCount[] = [
-    { label: 'Matematikk 2P', count: getStudentsForMathOption('2P').length },
-    { label: 'Matematikk S1', count: getStudentsForMathOption('S1').length },
-    { label: 'Matematikk R1', count: getStudentsForMathOption('R1').length },
-  ];
+  const mathOptionRows: OptionRow[] = useMemo(() => {
+    const options: Array<{ label: string; key: '2P' | 'S1' | 'R1' }> = [
+      { label: 'Matematikk 2P', key: '2P' },
+      { label: 'Matematikk S1', key: 'S1' },
+      { label: 'Matematikk R1', key: 'R1' },
+    ];
 
-  const mathOptionRows: OptionRow[] = [
-    { label: 'Matematikk 2P', count: mathOptionCounts[0].count, students: getStudentsForMathOption('2P') },
-    { label: 'Matematikk S1', count: mathOptionCounts[1].count, students: getStudentsForMathOption('S1') },
-    { label: 'Matematikk R1', count: mathOptionCounts[2].count, students: getStudentsForMathOption('R1') },
-  ];
+    return options.map((option) => {
+      const studentsForOption = getStudentsForMathOption(option.key);
+      return {
+        label: option.label,
+        count: studentsForOption.length,
+        students: studentsForOption,
+      };
+    });
+  }, [mergedData]);
 
   const foreignLanguageRows: OptionRow[] = useMemo(() => {
     const byKey = new Map<string, { label: string; students: OptionStudent[] }>();

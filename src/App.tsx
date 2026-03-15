@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import type { ParsedFile, ColumnMapping, StandardField, SubjectCount, StudentAssignmentChange } from './utils/excelUtils';
 import {
   mergeFiles,
@@ -116,6 +116,7 @@ function App() {
   const [isReloadConfirmArmed, setIsReloadConfirmArmed] = useState(false);
   const [jsonTransferStatus, setJsonTransferStatus] = useState('');
   const [isStudentExportMenuOpen, setIsStudentExportMenuOpen] = useState(false);
+  const persistTimeoutRef = useRef<number | null>(null);
 
   const showJsonTransferStatus = (message: string) => {
     setJsonTransferStatus(message);
@@ -362,7 +363,14 @@ function App() {
 
     const persistedState = buildPersistedState();
 
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(persistedState));
+    if (persistTimeoutRef.current !== null) {
+      window.clearTimeout(persistTimeoutRef.current);
+    }
+
+    persistTimeoutRef.current = window.setTimeout(() => {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(persistedState));
+      persistTimeoutRef.current = null;
+    }, 250);
   }, [
     isHydratedFromStorage,
     parsedFiles,
@@ -376,6 +384,14 @@ function App() {
     selectedMergedSubject,
     classBlockRestrictions,
   ]);
+
+  useEffect(() => {
+    return () => {
+      if (persistTimeoutRef.current !== null) {
+        window.clearTimeout(persistTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleFilesAdded = (files: ParsedFile[]) => {
     captureUndoSnapshot();
@@ -735,65 +751,58 @@ function App() {
     return parseWarningSubjects(typeof value === 'string' ? value : null);
   };
 
-  const warningEntries = mergedData.map((student, index) => {
-    const subjectCount = getWarningSubjects(student).length;
-    const collisionBlokker = [1, 2, 3, 4].filter((blokkNumber) => getWarningSubjectsInBlokk(student, blokkNumber).length > 1);
+  const warningEntries = useMemo(() => {
+    return mergedData.map((student, index) => {
+      const subjectCount = getWarningSubjects(student).length;
+      const collisionBlokker = [1, 2, 3, 4].filter((blokkNumber) => getWarningSubjectsInBlokk(student, blokkNumber).length > 1);
 
-    return {
-      student,
-      studentId: getWarningStudentId(student, index),
-      subjectCount,
-      hasBlokkCollision: collisionBlokker.length > 0,
-      collisionDetails: collisionBlokker.map((blokkNumber) => {
-        const subjects = getWarningSubjectsInBlokk(student, blokkNumber);
-        return `Blokk ${blokkNumber}: ${subjects.join(', ')}`;
-      }),
-    };
-  });
+      return {
+        student,
+        studentId: getWarningStudentId(student, index),
+        subjectCount,
+        hasBlokkCollision: collisionBlokker.length > 0,
+        collisionDetails: collisionBlokker.map((blokkNumber) => {
+          const subjects = getWarningSubjectsInBlokk(student, blokkNumber);
+          return `Blokk ${blokkNumber}: ${subjects.join(', ')}`;
+        }),
+      };
+    });
+  }, [mergedData]);
 
-  // Get students with less than 3 blokkfag
-  const getStudentsWithFewSubjects = () => {
+  const studentsWithFewSubjects = useMemo(() => {
     return warningEntries
-      .filter((entry) => {
-        return entry.subjectCount < 3;
-      })
+      .filter((entry) => entry.subjectCount < 3)
       .sort((a, b) => (a.student.navn || '').localeCompare(b.student.navn || '', 'nb', { sensitivity: 'base' }));
-  };
+  }, [warningEntries]);
 
-  const studentsWithFewSubjects = getStudentsWithFewSubjects();
-
-  const activeStudentsWithFewSubjects = studentsWithFewSubjects.filter(
-    (entry) => !isWarningIgnored(entry.studentId, 'missing')
-  );
-
-  const ignoredStudentsWithFewSubjects = studentsWithFewSubjects.filter(
-    (entry) => isWarningIgnored(entry.studentId, 'missing')
-  );
-
-  const getStudentsWithFourSubjects = () => {
-    return warningEntries.filter((entry) => {
-      return entry.subjectCount >= 4;
-    })
+  const studentsWithFourSubjects = useMemo(() => {
+    return warningEntries
+      .filter((entry) => entry.subjectCount >= 4)
       .sort((a, b) => (a.student.navn || '').localeCompare(b.student.navn || '', 'nb', { sensitivity: 'base' }));
-  };
+  }, [warningEntries]);
 
-  const studentsWithFourSubjects = getStudentsWithFourSubjects();
-
-  const activeStudentsWithFourSubjects = studentsWithFourSubjects.filter(
-    (entry) => !isWarningIgnored(entry.studentId, 'overloaded')
-  );
-
-  const ignoredStudentsWithFourSubjects = studentsWithFourSubjects.filter(
-    (entry) => isWarningIgnored(entry.studentId, 'overloaded')
-  );
-
-  const getStudentsWithBlokkCollisions = () => {
+  const studentsWithBlokkCollisions = useMemo(() => {
     return warningEntries
       .filter((entry) => entry.hasBlokkCollision)
       .sort((a, b) => (a.student.navn || '').localeCompare(b.student.navn || '', 'nb', { sensitivity: 'base' }));
-  };
+  }, [warningEntries]);
 
-  const studentsWithBlokkCollisions = getStudentsWithBlokkCollisions();
+  const activeStudentsWithFewSubjects = useMemo(() => {
+    return studentsWithFewSubjects.filter((entry) => !isWarningIgnored(entry.studentId, 'missing'));
+  }, [studentsWithFewSubjects, warningIgnoresByStudentAndType]);
+
+  const ignoredStudentsWithFewSubjects = useMemo(() => {
+    return studentsWithFewSubjects.filter((entry) => isWarningIgnored(entry.studentId, 'missing'));
+  }, [studentsWithFewSubjects, warningIgnoresByStudentAndType]);
+
+  const activeStudentsWithFourSubjects = useMemo(() => {
+    return studentsWithFourSubjects.filter((entry) => !isWarningIgnored(entry.studentId, 'overloaded'));
+  }, [studentsWithFourSubjects, warningIgnoresByStudentAndType]);
+
+  const ignoredStudentsWithFourSubjects = useMemo(() => {
+    return studentsWithFourSubjects.filter((entry) => isWarningIgnored(entry.studentId, 'overloaded'));
+  }, [studentsWithFourSubjects, warningIgnoresByStudentAndType]);
+
   const activeStudentsWithBlokkCollisions = studentsWithBlokkCollisions;
 
   const fewSubjectsIgnoredCount = ignoredStudentsWithFewSubjects.length;
@@ -803,10 +812,12 @@ function App() {
     || activeStudentsWithFourSubjects.length > 0
     || activeStudentsWithBlokkCollisions.length > 0;
 
-  const warningStudentIds = new Set<string>([
-    ...studentsWithFewSubjects.map((entry) => entry.studentId),
-    ...studentsWithFourSubjects.map((entry) => entry.studentId),
-  ]);
+  const warningStudentIds = useMemo(() => {
+    return new Set<string>([
+      ...studentsWithFewSubjects.map((entry) => entry.studentId),
+      ...studentsWithFourSubjects.map((entry) => entry.studentId),
+    ]);
+  }, [studentsWithFewSubjects, studentsWithFourSubjects]);
 
   useEffect(() => {
     setWarningIgnoresByStudentAndType((prev) => {
@@ -892,16 +903,24 @@ function App() {
       .some((subject) => subject.localeCompare(selectedSubject, 'nb', { sensitivity: 'base' }) === 0);
   };
 
-  const filteredMergedData = selectedMergedSubject
-    ? mergedData.filter((student) => {
+  const filteredMergedData = useMemo(() => {
+    if (!selectedMergedSubject) {
+      return mergedData;
+    }
+
+    return mergedData.filter((student) => {
       return (
         matchesSelectedSubject(student.blokk1, selectedMergedSubject)
         || matchesSelectedSubject(student.blokk2, selectedMergedSubject)
         || matchesSelectedSubject(student.blokk3, selectedMergedSubject)
         || matchesSelectedSubject(student.blokk4, selectedMergedSubject)
       );
-    })
-    : mergedData;
+    });
+  }, [mergedData, selectedMergedSubject]);
+
+  const subjectOptions = useMemo(() => {
+    return subjects.map((subject) => subject.subject);
+  }, [subjects]);
 
   const handleWarningExport = async () => {
     const XLSX = await loadXlsx();
@@ -1472,7 +1491,7 @@ function App() {
 
                   <div className="action-buttons">
                     <button onClick={handleLoadDataClick} className="load-btn" disabled={parsedFiles.length === 0}>
-                      Data
+                      Last inn data
                     </button>
                     <button onClick={handleClearStoredData} className="clear-storage-btn">
                       Tøm data
@@ -1493,7 +1512,7 @@ function App() {
                 <GrupperView
                   data={mergedData}
                   blokkCount={blokkCount}
-                  subjectOptions={subjects.map((subject) => subject.subject)}
+                  subjectOptions={subjectOptions}
                   subjectSettingsByName={subjectSettingsByName}
                   classBlockRestrictions={classBlockRestrictions}
                   changeLog={studentAssignmentChanges}
@@ -1525,14 +1544,14 @@ function App() {
                   totalDataCount={mergedData.length}
                   selectedSubject={selectedMergedSubject}
                   onSubjectFilterChange={setSelectedMergedSubject}
-                  subjectOptions={subjects.map((subject) => subject.subject)}
+                  subjectOptions={subjectOptions}
                   blokkCount={blokkCount}
                 />
               ) : (
                 <EleverView
                   data={mergedData}
                   blokkCount={blokkCount}
-                  subjectOptions={subjects.map((subject) => subject.subject)}
+                  subjectOptions={subjectOptions}
                   subjectSettingsByName={subjectSettingsByName}
                   onSaveSubjectSettingsByName={handleSaveSubjectSettingsByName}
                   warningIgnoresByStudentAndType={warningIgnoresByStudentAndType}

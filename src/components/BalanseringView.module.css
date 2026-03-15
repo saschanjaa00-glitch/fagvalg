@@ -180,6 +180,23 @@
   color: #1d5b8f;
 }
 
+.disabledSection {
+  opacity: 0.56;
+}
+
+.disabledSection button,
+.disabledSection input,
+.disabledSection select {
+  cursor: not-allowed;
+}
+
+.restrictionNotice {
+  margin: 0 0 12px;
+  color: #7a4e1a;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .subjectExclusionList {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

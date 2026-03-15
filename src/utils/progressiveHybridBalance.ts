@@ -215,7 +215,7 @@ export const DEFAULT_BALANCING_CONFIG: BalancingConfig = {
   maxLookaheadAttempts: 300,
   maxDepth2Chains: 150,
   classBlockRestrictions: DEFAULT_CLASS_BLOCK_RESTRICTIONS,
-  excludedSubjects: ['Toppidrett 2', 'Toppidrett 3'],
+  excludedSubjects: [],
   lockedAssignmentKeys: [],
 };
 
@@ -1687,9 +1687,14 @@ const buildStudentCollisionMoves = (
   }
 
   const result: Array<{ candidate: CandidateMove; score: number; directFix: boolean }> = [];
+  const excludedSubjects = toExcludedSubjectSet(config.excludedSubjects);
 
   student.assignments.forEach((assignment) => {
     if (assignment.locked) {
+      return;
+    }
+
+    if (isExcludedSubjectName(assignment.subjectName, excludedSubjects)) {
       return;
     }
 
@@ -2077,7 +2082,7 @@ export const progressiveHybridBalance = (
   // Phase 0: Resolve block-collisions first, ignoring group capacity.
   // Only subjects that truly cannot be placed in separate blocks will remain as warnings.
   repairCollisions(state, mergedConfig);
-  let bestStrictState = cloneState(state);
+  let bestStrictState: InternalState | null = null;
 
   let passesRun = 0;
   let lookaheadAttempts = 0;
@@ -2125,7 +2130,9 @@ export const progressiveHybridBalance = (
     }
   }
 
-  state = cloneState(bestStrictState);
+  // If we never reached offset 0 within the time budget, keep the best progress
+  // we actually computed instead of reverting to the pre-pass state.
+  state = cloneState(bestStrictState || state);
 
   const collisionRepair = repairCollisions(state, mergedConfig);
   const afterScore = computeScore(state, mergedConfig.weights, state.history, excludedSubjects);
