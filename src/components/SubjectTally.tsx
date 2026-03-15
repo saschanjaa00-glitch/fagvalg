@@ -938,7 +938,7 @@ export const SubjectTally = ({
           onClick={openOverfillModal}
           title="Overfyllingsinnstillinger"
         >
-          Innstillinger
+          Set maks elever / fag
         </button>
       </div>
       <table className={styles.table}>

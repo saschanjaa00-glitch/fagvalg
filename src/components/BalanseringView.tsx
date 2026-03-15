@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { StandardField } from '../utils/excelUtils';
 import {
   DEFAULT_BALANCING_CONFIG,
   DEFAULT_CLASS_BLOCK_RESTRICTIONS,
-  progressiveHybridBalance,
   type BalancingConfig,
   type BalancingWeights,
   type BlockNumber,
@@ -11,6 +10,7 @@ import {
   type ProgressiveHybridBalanceResult,
   type SubjectSettingsByNameLike,
 } from '../utils/progressiveHybridBalance';
+import type { BalancingWorkerInbound, BalancingWorkerOutbound } from '../workers/progressiveHybridBalance.worker.types';
 import styles from './BalanseringView.module.css';
 
 interface BalanseringViewProps {
@@ -138,6 +138,8 @@ export const BalanseringView = ({
   const [statusMessage, setStatusMessage] = useState('');
   const [lastResult, setLastResult] = useState<ProgressiveHybridBalanceResult | null>(null);
   const [isBalancing, setIsBalancing] = useState(false);
+  const workerRef = useRef<Worker | null>(null);
+  const activeRequestIdRef = useRef(0);
 
   const effectiveRestrictions = useMemo(() => normalizeRestrictions(restrictions), [restrictions]);
   const visibleClassLevels = useMemo(() => {
@@ -181,6 +183,58 @@ export const BalanseringView = ({
     }
   }, [hasAnyAllowedRestriction]);
 
+  useEffect(() => {
+    const worker = new Worker(new URL('../workers/progressiveHybridBalance.worker.ts', import.meta.url), {
+      type: 'module',
+    });
+
+    workerRef.current = worker;
+
+    const handleMessage = (event: MessageEvent<BalancingWorkerOutbound>) => {
+      const message = event.data;
+      if (!message || message.requestId !== activeRequestIdRef.current) {
+        return;
+      }
+
+      if (message.type === 'error') {
+        setStatusMessage(`Balansering feilet: ${message.message}`);
+        setIsBalancing(false);
+        return;
+      }
+
+      const result = message.result;
+      setLastResult(result);
+      onApplyResult(result);
+
+      const unresolvedCollisionCount = result.diagnostics.unresolvedCollisions.length;
+      setStatusMessage(
+        `Kjort ferdig: ${result.diagnostics.moveCount} flytt, ${result.diagnostics.uniqueStudentsMoved} elever, score ${formatNumber(
+          result.diagnostics.beforeScore.total
+        )} -> ${formatNumber(result.diagnostics.afterScore.total)}${
+          unresolvedCollisionCount > 0
+            ? `, ADVARSEL: ${unresolvedCollisionCount} elevfag kan ikke plasseres uten kollisjon (se logg)`
+            : ''
+        }`
+      );
+      setIsBalancing(false);
+    };
+
+    const handleError = () => {
+      setStatusMessage('Balanseringsarbeideren krasjet. Prover igjen kan hjelpe.');
+      setIsBalancing(false);
+    };
+
+    worker.addEventListener('message', handleMessage);
+    worker.addEventListener('error', handleError);
+
+    return () => {
+      worker.removeEventListener('message', handleMessage);
+      worker.removeEventListener('error', handleError);
+      worker.terminate();
+      workerRef.current = null;
+    };
+  }, [onApplyResult]);
+
   const runBalancing = () => {
     if (isBalancing) {
       return;
@@ -191,61 +245,58 @@ export const BalanseringView = ({
       return;
     }
 
+    if (!workerRef.current) {
+      setStatusMessage('Kunne ikke starte balanseringsarbeider. Last siden pa nytt.');
+      return;
+    }
+
+    const parsedMaxRelaxation = Math.max(
+      0,
+      Math.floor(parseInputNumber(maxRelaxation, DEFAULT_BALANCING_CONFIG.maxRelaxation))
+    );
+
+    const effectiveMaxRelaxation =
+      presetMode === 'even'
+        ? EVEN_PRESET_MAX_RELAXATION
+        : presetMode === 'underMax'
+          ? 2
+          : parsedMaxRelaxation;
+
+    const capacityOffsets = presetMode === 'even' ? EVEN_BALANCE_OFFSETS : undefined;
+
+    const config: Partial<BalancingConfig> = {
+      weights: {
+        ...weights,
+        collisionD: FIXED_COLLISION_WEIGHT,
+      },
+      maxRelaxation: effectiveMaxRelaxation,
+      capacityOffsets,
+      maxPassMillis: Math.max(200, Math.floor(parseInputNumber(maxPassMillis, DEFAULT_BALANCING_CONFIG.maxPassMillis))),
+      maxLookaheadAttempts: Math.max(
+        0,
+        Math.floor(parseInputNumber(maxLookaheadAttempts, DEFAULT_BALANCING_CONFIG.maxLookaheadAttempts))
+      ),
+      maxDepth2Chains: Math.max(0, Math.floor(parseInputNumber(maxDepth2Chains, DEFAULT_BALANCING_CONFIG.maxDepth2Chains))),
+      classBlockRestrictions: effectiveRestrictions,
+      excludedSubjects,
+    };
+
+    const requestId = activeRequestIdRef.current + 1;
+    activeRequestIdRef.current = requestId;
     setIsBalancing(true);
     setStatusMessage('Balanserer...');
 
-    // Let React paint the loading overlay before heavy work starts.
-    window.setTimeout(() => {
-      try {
-        const parsedMaxRelaxation = Math.max(
-          0,
-          Math.floor(parseInputNumber(maxRelaxation, DEFAULT_BALANCING_CONFIG.maxRelaxation))
-        );
+    const message: BalancingWorkerInbound = {
+      type: 'run',
+      requestId,
+      payload: {
+        rows: mergedData,
+        subjectSettingsByName,
+        config,
+      },
+    };
 
-        const effectiveMaxRelaxation =
-          presetMode === 'even'
-            ? EVEN_PRESET_MAX_RELAXATION
-            : presetMode === 'underMax'
-              ? 2
-              : parsedMaxRelaxation;
-
-        const capacityOffsets = presetMode === 'even' ? EVEN_BALANCE_OFFSETS : undefined;
-
-        const config: Partial<BalancingConfig> = {
-          weights: {
-            ...weights,
-            collisionD: FIXED_COLLISION_WEIGHT,
-          },
-          maxRelaxation: effectiveMaxRelaxation,
-          capacityOffsets,
-          maxPassMillis: Math.max(200, Math.floor(parseInputNumber(maxPassMillis, DEFAULT_BALANCING_CONFIG.maxPassMillis))),
-          maxLookaheadAttempts: Math.max(
-            0,
-            Math.floor(parseInputNumber(maxLookaheadAttempts, DEFAULT_BALANCING_CONFIG.maxLookaheadAttempts))
-          ),
-          maxDepth2Chains: Math.max(0, Math.floor(parseInputNumber(maxDepth2Chains, DEFAULT_BALANCING_CONFIG.maxDepth2Chains))),
-          classBlockRestrictions: effectiveRestrictions,
-          excludedSubjects,
-        };
-
-        const result = progressiveHybridBalance(mergedData, subjectSettingsByName, config);
-        setLastResult(result);
-        onApplyResult(result);
-
-        const unresolvedCollisionCount = result.diagnostics.unresolvedCollisions.length;
-        setStatusMessage(
-          `Kjort ferdig: ${result.diagnostics.moveCount} flytt, ${result.diagnostics.uniqueStudentsMoved} elever, score ${formatNumber(
-            result.diagnostics.beforeScore.total
-          )} -> ${formatNumber(result.diagnostics.afterScore.total)}${
-            unresolvedCollisionCount > 0
-              ? `, ADVARSEL: ${unresolvedCollisionCount} elevfag kan ikke plasseres uten kollisjon (se logg)`
-              : ''
-          }`
-        );
-      } finally {
-        setIsBalancing(false);
-      }
-    }, 20);
+    workerRef.current.postMessage(message);
   };
 
   const updateRestriction = (classKey: string, block: BlockNumber, allowed: boolean) => {
