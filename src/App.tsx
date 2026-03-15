@@ -17,6 +17,7 @@ import { FileUploader } from './components/FileUploader';
 import { ColumnMapper } from './components/ColumnMapper';
 import { MergedDataView } from './components/MergedDataView';
 import { SubjectTally } from './components/SubjectTally';
+import { GrupperView } from './components/GrupperView';
 import { EleverView } from './components/EleverView';
 import { ChangeLogView } from './components/ChangeLogView';
 import { BalanseringView } from './components/BalanseringView';
@@ -61,7 +62,9 @@ function App() {
   const [blokkCount, setBlokkCount] = useState(4);
   
   const [columnMapperExpanded, setColumnMapperExpanded] = useState(false);
-  const [activeDataTab, setActiveDataTab] = useState<'import' | 'subjects' | 'students' | 'elever' | 'balancing' | 'changelog'>('import');
+  const [activeDataTab, setActiveDataTab] = useState<
+    'import' | 'subjects' | 'groups' | 'students' | 'elever' | 'balancing' | 'changelog'
+  >('import');
   const [warningExpanded, setWarningExpanded] = useState(false);
   const [warningBlokkCollisionExpanded, setWarningBlokkCollisionExpanded] = useState(false);
   const [warningFewSubjectsExpanded, setWarningFewSubjectsExpanded] = useState(false);
@@ -955,6 +958,15 @@ function App() {
                 <button
                   type="button"
                   role="tab"
+                  aria-selected={activeDataTab === 'groups'}
+                  className={`data-tab ${activeDataTab === 'groups' ? 'data-tab-active' : ''}`.trim()}
+                  onClick={() => setActiveDataTab('groups')}
+                >
+                  Grupper
+                </button>
+                <button
+                  type="button"
+                  role="tab"
                   aria-selected={activeDataTab === 'elever'}
                   className={`data-tab ${activeDataTab === 'elever' ? 'data-tab-active' : ''}`.trim()}
                   onClick={() => setActiveDataTab('elever')}
@@ -1077,6 +1089,18 @@ function App() {
                   onSaveSubjectSettingsByName={setSubjectSettingsByName}
                   onApplySubjectBlockMoves={handleApplySubjectBlockMoves}
                   onRemoveStudentsFromSubject={handleRemoveStudentsFromSubject}
+                  onOpenStudentCard={handleOpenStudentInElever}
+                />
+              ) : activeDataTab === 'groups' ? (
+                <GrupperView
+                  data={mergedData}
+                  blokkCount={blokkCount}
+                  subjectOptions={subjects.map((subject) => subject.subject)}
+                  subjectSettingsByName={subjectSettingsByName}
+                  classBlockRestrictions={classBlockRestrictions}
+                  changeLog={studentAssignmentChanges}
+                  onSaveSubjectSettingsByName={setSubjectSettingsByName}
+                  onStudentDataUpdate={handleStudentAssignmentsUpdated}
                   onOpenStudentCard={handleOpenStudentInElever}
                 />
               ) : activeDataTab === 'changelog' ? (
