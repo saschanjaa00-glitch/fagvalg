@@ -205,14 +205,7 @@ const DEFAULT_WEIGHTS: BalancingWeights = {
   beta: 1,
 };
 
-export const DEFAULT_CLASS_BLOCK_RESTRICTIONS: ClassBlockRestrictions = {
-  VG2: {
-    4: false,
-  },
-  VG3: {
-    1: false,
-  },
-};
+export const DEFAULT_CLASS_BLOCK_RESTRICTIONS: ClassBlockRestrictions = {};
 
 export const DEFAULT_BALANCING_CONFIG: BalancingConfig = {
   weights: DEFAULT_WEIGHTS,

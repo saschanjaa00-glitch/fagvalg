@@ -213,8 +213,8 @@ export const BalanseringView = ({
     onRestrictionsChange(next);
   };
 
-  const resetSchoolDefaults = () => {
-    onRestrictionsChange({ ...DEFAULT_CLASS_BLOCK_RESTRICTIONS });
+  const allowAll = () => {
+    onRestrictionsChange({});
   };
 
   const toggleExcludedSubject = (subject: string, excluded: boolean) => {
@@ -236,13 +236,17 @@ export const BalanseringView = ({
 
     if (mode === 'even') {
       setMaxRelaxation('20');
-      setParametersExpanded(false);
+      if (!parametersExpanded) {
+        setParametersExpanded(false);
+      }
       return;
     }
 
     if (mode === 'underMax') {
       setMaxRelaxation('2');
-      setParametersExpanded(false);
+      if (!parametersExpanded) {
+        setParametersExpanded(false);
+      }
       return;
     }
 
@@ -285,14 +289,13 @@ export const BalanseringView = ({
                       const allowed = effectiveRestrictions[classKey]?.[block] ?? true;
                       return (
                         <td key={`${classKey}-${block}`}>
-                          <label className={styles.checkboxWrap}>
-                            <input
-                              type="checkbox"
-                              checked={allowed}
-                              onChange={(event) => updateRestriction(classKey, block, event.target.checked)}
-                            />
-                            <span>{allowed ? 'Tillatt' : 'Ikke tillatt'}</span>
-                          </label>
+                          <button
+                            type="button"
+                            className={`${styles.restrictionToggle} ${allowed ? styles.restrictionToggleOn : styles.restrictionToggleOff}`.trim()}
+                            onClick={() => updateRestriction(classKey, block, !allowed)}
+                          >
+                            {allowed ? 'Tillatt' : 'Ikke tillatt'}
+                          </button>
                         </td>
                       );
                     })}
@@ -301,8 +304,8 @@ export const BalanseringView = ({
               })}
             </tbody>
           </table>
-          <button type="button" className={styles.secondaryBtn} onClick={resetSchoolDefaults}>
-            Gjenopprett skolestandard
+          <button type="button" className={styles.secondaryBtn} onClick={allowAll}>
+            Tillatt alle
           </button>
         </div>
 
