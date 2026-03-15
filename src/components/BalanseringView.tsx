@@ -17,6 +17,8 @@ interface BalanseringViewProps {
   mergedData: StandardField[];
   subjectSettingsByName: SubjectSettingsByNameLike;
   restrictions: ClassBlockRestrictions;
+  excludedSubjects: string[];
+  onExcludedSubjectsChange: (subjects: string[]) => void;
   onRestrictionsChange: (value: ClassBlockRestrictions) => void;
   onApplyResult: (result: ProgressiveHybridBalanceResult) => void;
 }
@@ -104,6 +106,8 @@ export const BalanseringView = ({
   mergedData,
   subjectSettingsByName,
   restrictions,
+  excludedSubjects,
+  onExcludedSubjectsChange,
   onRestrictionsChange,
   onApplyResult,
 }: BalanseringViewProps) => {
@@ -112,7 +116,6 @@ export const BalanseringView = ({
   const [maxPassMillis, setMaxPassMillis] = useState(String(DEFAULT_BALANCING_CONFIG.maxPassMillis));
   const [maxLookaheadAttempts, setMaxLookaheadAttempts] = useState(String(DEFAULT_BALANCING_CONFIG.maxLookaheadAttempts));
   const [maxDepth2Chains, setMaxDepth2Chains] = useState(String(DEFAULT_BALANCING_CONFIG.maxDepth2Chains));
-  const [excludedSubjects, setExcludedSubjects] = useState<string[]>(DEFAULT_BALANCING_CONFIG.excludedSubjects);
   const [presetMode, setPresetMode] = useState<BalancePresetMode>('even');
   const [parametersExpanded, setParametersExpanded] = useState(false);
   const [excludedSubjectsExpanded, setExcludedSubjectsExpanded] = useState(false);
@@ -219,17 +222,20 @@ export const BalanseringView = ({
   };
 
   const toggleExcludedSubject = (subject: string, excluded: boolean) => {
-    setExcludedSubjects((prev) => {
-      if (excluded) {
-        return [...prev, subject].sort((left, right) => left.localeCompare(right, 'nb', { sensitivity: 'base' }));
-      }
+    if (excluded) {
+      onExcludedSubjectsChange(
+        [...excludedSubjects, subject]
+          .filter((value, index, arr) => arr.indexOf(value) === index)
+          .sort((left, right) => left.localeCompare(right, 'nb', { sensitivity: 'base' }))
+      );
+      return;
+    }
 
-      return prev.filter((item) => item !== subject);
-    });
+    onExcludedSubjectsChange(excludedSubjects.filter((item) => item !== subject));
   };
 
   const clearExcludedSubjects = () => {
-    setExcludedSubjects([]);
+    onExcludedSubjectsChange([]);
   };
 
   const selectPreset = (mode: BalancePresetMode) => {

@@ -4,6 +4,73 @@
   gap: 10px;
 }
 
+.warningPanel {
+  border: 1px solid #e8cc9a;
+  border-radius: 8px;
+  background: #fff8ec;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.warningToggleBtn {
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.warningToggleBtn:hover .warningTitle {
+  text-decoration: underline;
+}
+
+.warningTitle {
+  margin: 0;
+  font-size: 13px;
+  color: #8b5213;
+}
+
+.warningSection h5 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: #6e4311;
+}
+
+.warningSection ul {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.warningSection li {
+  font-size: 12px;
+  line-height: 1.35;
+  color: #5a3a14;
+}
+
+.warningStudentButton {
+  border: none;
+  background: transparent;
+  color: #623d0f;
+  font: inherit;
+  font-weight: 700;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.warningStudentButton:hover {
+  text-decoration: underline;
+}
+
 .topBar {
   display: flex;
   justify-content: space-between;

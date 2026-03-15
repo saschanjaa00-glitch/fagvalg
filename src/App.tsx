@@ -23,6 +23,7 @@ import { ChangeLogView } from './components/ChangeLogView';
 import { BalanseringView } from './components/BalanseringView';
 import type { SubjectSettingsByName } from './components/SubjectTally';
 import {
+  DEFAULT_BALANCING_CONFIG,
   DEFAULT_CLASS_BLOCK_RESTRICTIONS,
   type ClassBlockRestrictions,
   type ProgressiveHybridBalanceResult,
@@ -106,6 +107,9 @@ function App() {
   const [redoHistory, setRedoHistory] = useState<PersistedAppState[]>([]);
   const [classBlockRestrictions, setClassBlockRestrictions] = useState<ClassBlockRestrictions>(
     DEFAULT_CLASS_BLOCK_RESTRICTIONS
+  );
+  const [balancingExcludedSubjects, setBalancingExcludedSubjects] = useState<string[]>(
+    DEFAULT_BALANCING_CONFIG.excludedSubjects
   );
   const [isHydratedFromStorage, setIsHydratedFromStorage] = useState(false);
   const [showReloadConfirmModal, setShowReloadConfirmModal] = useState(false);
@@ -1008,18 +1012,19 @@ function App() {
 
           <>
             {hasLoadedData && (
-              <div className={`warning-box ${hasActiveWarnings ? '' : 'warning-box-clear'}`.trim()}>
-                <h3 
-                  className={`collapsible-header warning-header ${hasActiveWarnings ? '' : 'warning-header-clear'}`.trim()}
-                  onClick={() => setWarningExpanded(!warningExpanded)}
-                >
-                  <span className="chevron">{warningExpanded ? '▼' : '▶'}</span>
-                  {hasActiveWarnings
-                    ? `⚠️ Advarsel: ${activeStudentsWithBlokkCollisions.length} blokk-kollisjon, ${activeStudentsWithFewSubjects.length} under 3 fag, ${activeStudentsWithFourSubjects.length} med 4+ fag`
-                    : '✅ Ingen aktive advarsler'}
-                </h3>
-                {warningExpanded && (
-                  <div className="warning-content">
+              <div className="warning-section-group">
+                <div className={`warning-box ${hasActiveWarnings ? '' : 'warning-box-clear'}`.trim()}>
+                  <h3 
+                    className={`collapsible-header warning-header ${hasActiveWarnings ? '' : 'warning-header-clear'}`.trim()}
+                    onClick={() => setWarningExpanded(!warningExpanded)}
+                  >
+                    <span className="chevron">{warningExpanded ? '▼' : '▶'}</span>
+                    {hasActiveWarnings
+                      ? `⚠️ Advarsel: ${activeStudentsWithBlokkCollisions.length} blokk-kollisjon, ${activeStudentsWithFewSubjects.length} under 3 fag, ${activeStudentsWithFourSubjects.length} med 4+ fag`
+                      : '✅ Ingen aktive advarsler'}
+                  </h3>
+                  {warningExpanded && (
+                    <div className="warning-content">
                     {!hasActiveWarnings && studentsWithFewSubjects.length === 0 && studentsWithFourSubjects.length === 0 && studentsWithBlokkCollisions.length === 0 && (
                       <p className="warning-clear-message">Alle elever har gyldig antall blokkfag.</p>
                     )}
@@ -1212,8 +1217,10 @@ function App() {
                         })}
                       </ul>
                     )}
-                  </div>
-                )}
+                    </div>
+                  )}
+                </div>
+                {hasActiveWarnings && <hr className="warning-section-divider" />}
               </div>
               )}
             
@@ -1498,6 +1505,8 @@ function App() {
                 <ChangeLogView
                   changeLog={studentAssignmentChanges}
                   currentStudents={mergedData}
+                  subjectSettingsByName={subjectSettingsByName}
+                  excludedSubjects={balancingExcludedSubjects}
                   onOpenStudentCard={handleOpenStudentInElever}
                 />
               ) : activeDataTab === 'balancing' ? (
@@ -1505,6 +1514,8 @@ function App() {
                   mergedData={mergedData}
                   subjectSettingsByName={subjectSettingsByName}
                   restrictions={classBlockRestrictions}
+                  excludedSubjects={balancingExcludedSubjects}
+                  onExcludedSubjectsChange={setBalancingExcludedSubjects}
                   onRestrictionsChange={handleClassBlockRestrictionsChange}
                   onApplyResult={handleApplyBalancingResult}
                 />

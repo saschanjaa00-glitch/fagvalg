@@ -1,10 +1,20 @@
 import { useMemo, useState } from 'react';
 import type { StandardField, StudentAssignmentChange } from '../utils/excelUtils';
+import {
+  BLOKK_LABELS,
+  getBlokkNumber,
+  getResolvedGroupsByTarget,
+  getSettingsForSubject,
+  type BlokkLabel,
+  type SubjectSettingsByName,
+} from '../utils/subjectGroups';
 import styles from './ChangeLogView.module.css';
 
 interface ChangeLogViewProps {
   changeLog: StudentAssignmentChange[];
   currentStudents: StandardField[];
+  subjectSettingsByName: SubjectSettingsByName;
+  excludedSubjects: string[];
   onOpenStudentCard?: (studentId: string) => void;
 }
 
@@ -20,6 +30,14 @@ interface SummaryEntry {
   fromBlokk: number;
   toBlokk: number;
   lastChangedAt: string;
+}
+
+interface UnresolvedBalanceWarning {
+  key: string;
+  studentId: string;
+  navn: string;
+  klasse: string;
+  reason: string;
 }
 
 type LogMode = 'detailed' | 'summary';
@@ -68,6 +86,18 @@ const parseSubjects = (value: string | null | undefined): string[] => {
     .split(/[,;]/)
     .map((subject) => subject.trim())
     .filter((subject) => subject.length > 0);
+};
+
+const isSameSubject = (left: string, right: string): boolean => {
+  return left.localeCompare(right, 'nb', { sensitivity: 'base' }) === 0;
+};
+
+const getStudentId = (student: StandardField, index: number): string => {
+  return student.studentId || `${student.navn || 'ukjent'}:${student.klasse || 'ukjent'}:${index}`;
+};
+
+const getBlokkKey = (blokkNumber: number): BlokkField => {
+  return `blokk${blokkNumber}` as BlokkField;
 };
 
 const formatFinalAllocation = (student: StandardField | undefined): string => {
@@ -147,12 +177,21 @@ const getWordLineStyle = (changeType: ChangeType): string => {
   return 'background:#eef5ff;border-left:3px solid #2a63b7;color:#1f3f6c;';
 };
 
-export const ChangeLogView = ({ changeLog, currentStudents, onOpenStudentCard }: ChangeLogViewProps) => {
+export const ChangeLogView = ({
+  changeLog,
+  currentStudents,
+  subjectSettingsByName,
+  excludedSubjects,
+  onOpenStudentCard,
+}: ChangeLogViewProps) => {
   const [mode, setMode] = useState<LogMode>('summary');
+  const [warningsExpanded, setWarningsExpanded] = useState(false);
 
   const studentsById = useMemo(() => {
     const map = new Map<string, StandardField>();
-    currentStudents.forEach((student) => {
+    currentStudents.forEach((student, index) => {
+      const inferredId = getStudentId(student, index);
+      map.set(inferredId, student);
       if (student.studentId && student.studentId.trim().length > 0) {
         map.set(student.studentId, student);
       }
@@ -253,6 +292,127 @@ export const ChangeLogView = ({ changeLog, currentStudents, onOpenStudentCard }:
 
     return groupedSummaries;
   }, [groupedSummaries, mode]);
+
+  const excludedSubjectsSet = useMemo(() => {
+    return new Set(
+      excludedSubjects
+        .map((subject) => subject.trim().toLocaleLowerCase('nb'))
+        .filter((subject) => subject.length > 0)
+    );
+  }, [excludedSubjects]);
+
+  const balancingWarnings = useMemo(() => {
+    const unresolved: UnresolvedBalanceWarning[] = [];
+    const subjectsInData = new Set<string>();
+    const candidateBlocksBySubject = new Map<string, number[]>();
+
+    currentStudents.forEach((student) => {
+      BLOKK_FIELDS.slice(0, 4).forEach((blokkField) => {
+        parseSubjects(student[blokkField] as string | null | undefined).forEach((subject) => {
+          if (!excludedSubjectsSet.has(subject.trim().toLocaleLowerCase('nb'))) {
+            subjectsInData.add(subject);
+          }
+        });
+      });
+    });
+
+    Object.keys(subjectSettingsByName).forEach((subject) => {
+      if (!excludedSubjectsSet.has(subject.trim().toLocaleLowerCase('nb'))) {
+        subjectsInData.add(subject);
+      }
+    });
+
+    Array.from(subjectsInData).forEach((subject) => {
+      const breakdown: Record<BlokkLabel, number> = {
+        'Blokk 1': 0,
+        'Blokk 2': 0,
+        'Blokk 3': 0,
+        'Blokk 4': 0,
+      };
+      const studentIdsByBlokk: Record<BlokkLabel, string[]> = {
+        'Blokk 1': [],
+        'Blokk 2': [],
+        'Blokk 3': [],
+        'Blokk 4': [],
+      };
+
+      currentStudents.forEach((student, index) => {
+        const studentId = getStudentId(student, index);
+        BLOKK_LABELS.forEach((blokkLabel) => {
+          const blokkNumber = getBlokkNumber(blokkLabel);
+          const subjectsInBlokk = parseSubjects(student[getBlokkKey(blokkNumber)] as string | null | undefined);
+          if (subjectsInBlokk.some((value) => isSameSubject(value, subject))) {
+            breakdown[blokkLabel] += 1;
+            studentIdsByBlokk[blokkLabel].push(studentId);
+          }
+        });
+      });
+
+      const settings = getSettingsForSubject(subjectSettingsByName, subject, breakdown);
+      const resolvedByTarget = getResolvedGroupsByTarget(
+        settings.groups || [],
+        studentIdsByBlokk,
+        settings.groupStudentAssignments || {}
+      );
+
+      const candidateBlocks = BLOKK_LABELS
+        .filter((blokkLabel) => resolvedByTarget[blokkLabel].some((group) => group.enabled))
+        .map((blokkLabel) => getBlokkNumber(blokkLabel));
+      candidateBlocksBySubject.set(subject.trim().toLocaleLowerCase('nb'), candidateBlocks);
+    });
+
+    currentStudents.forEach((student, index) => {
+      const studentId = getStudentId(student, index);
+      const selectedSubjects = Array.from(
+        new Set(
+          BLOKK_FIELDS.slice(0, 4)
+            .flatMap((blokkField) => parseSubjects(student[blokkField] as string | null | undefined))
+            .filter((subject) => !excludedSubjectsSet.has(subject.trim().toLocaleLowerCase('nb')))
+        )
+      );
+
+      const fixedByBlock = new Map<number, string[]>();
+
+      selectedSubjects.forEach((subject) => {
+        const candidates = candidateBlocksBySubject.get(subject.trim().toLocaleLowerCase('nb')) || [];
+        if (candidates.length !== 1) {
+          return;
+        }
+
+        const onlyBlock = candidates[0];
+        fixedByBlock.set(onlyBlock, [...(fixedByBlock.get(onlyBlock) || []), subject]);
+      });
+
+      const collisionDetails = Array.from(fixedByBlock.entries())
+        .filter(([, subjects]) => subjects.length > 1)
+        .map(([block, subjects]) => `Blokk ${block}: ${subjects.join(', ')}`);
+
+      if (collisionDetails.length === 0) {
+        return;
+      }
+
+      unresolved.push({
+        key: `${studentId}::final-unresolved`,
+        studentId,
+        navn: student.navn || 'Ukjent',
+        klasse: student.klasse || 'Ingen klasse',
+        reason: `Kan ikke balansere uten kollisjon med dagens grupper: ${collisionDetails.join(' | ')}`,
+      });
+    });
+
+    return {
+      unresolved: unresolved.sort((left, right) => {
+        const nameCompare = left.navn.localeCompare(right.navn, 'nb', { sensitivity: 'base' });
+        if (nameCompare !== 0) {
+          return nameCompare;
+        }
+
+        return left.klasse.localeCompare(right.klasse, 'nb', { sensitivity: 'base' });
+      }),
+    };
+  }, [currentStudents, excludedSubjectsSet, studentsById, subjectSettingsByName]);
+
+  const hasBalancingWarnings = balancingWarnings.unresolved.length > 0;
 
   const finalAllocationByStudentId = useMemo(() => {
     const map = new Map<string, string>();
@@ -371,16 +531,61 @@ export const ChangeLogView = ({ changeLog, currentStudents, onOpenStudentCard }:
     }
   };
 
-  if (groupedChanges.length === 0) {
+  if (groupedChanges.length === 0 && !hasBalancingWarnings) {
     return <div className={styles.empty}>Ingen endringer registrert enda.</div>;
   }
 
-  if (visibleGroups.length === 0) {
+  if (visibleGroups.length === 0 && !hasBalancingWarnings) {
     return <div className={styles.empty}>Ingen oppsummerte endringer registrert.</div>;
   }
 
   return (
     <div className={styles.wrapper}>
+      {hasBalancingWarnings && (
+        <section className={styles.warningPanel}>
+          <button
+            type="button"
+            className={styles.warningToggleBtn}
+            onClick={() => setWarningsExpanded((prev) => !prev)}
+            aria-expanded={warningsExpanded}
+          >
+            <span>{warningsExpanded ? '▼' : '▶'}</span>
+            <span className={styles.warningTitle}>
+              Balanseringsvarsler ({balancingWarnings.unresolved.length})
+            </span>
+          </button>
+
+          {warningsExpanded && (
+            <>
+              {balancingWarnings.unresolved.length > 0 && (
+                <div className={styles.warningSection}>
+                  <h5>Elever med uloselige fagkombinasjoner ({balancingWarnings.unresolved.length})</h5>
+                  <ul>
+                    {balancingWarnings.unresolved.map((warning) => (
+                      <li key={warning.key}>
+                        {onOpenStudentCard ? (
+                          <button
+                            type="button"
+                            className={styles.warningStudentButton}
+                            onClick={() => onOpenStudentCard(warning.studentId)}
+                          >
+                            {warning.navn} ({warning.klasse})
+                          </button>
+                        ) : (
+                          <strong>{warning.navn} ({warning.klasse})</strong>
+                        )}
+                        {' '}
+                        - {warning.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      )}
+
       <div className={styles.topBar}>
         <div className={styles.modeToggle}>
           <button

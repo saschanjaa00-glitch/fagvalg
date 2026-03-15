@@ -40,7 +40,7 @@
 }
 
 .main {
-  max-width: 1080px;
+  max-width: 1130px;
   margin: 0 auto;
 }
 
@@ -241,8 +241,10 @@
   align-items: flex-end;
   gap: 12px;
   flex-wrap: wrap;
+  background: #ffffff;
+  border-radius: 6px;
+  padding: 8px;
   border-bottom: 1px solid #e0e0e0;
-  padding-bottom: 8px;
 }
 
 .data-tabs {
@@ -264,6 +266,7 @@
   margin-top: 8px;
   border-bottom: none;
   padding-bottom: 0;
+  padding-left: 8px;
 }
 
 .data-tab-actions {
@@ -311,8 +314,8 @@
 }
 
 .tabline-action-btn {
-  padding: 6px 10px;
-  font-size: 12px;
+  padding: 7px 12px;
+  font-size: 13px;
 }
 
 .history-btn {
@@ -366,6 +369,23 @@
   border-color: #6f97c8;
 }
 
+.data-subtabs .data-tab-active {
+  background: #edf6ff;
+  border-color: #8db0d6;
+  color: #1f5a95;
+}
+
+.data-tab-bar .data-tab-active {
+  background: #c2dcfb;
+  color: #123f70;
+  border-color: #4f7fb8;
+}
+
+.data-tab-bar .data-tab {
+  padding: 7px 12px;
+  font-size: 13px;
+}
+
 .data-tab-panel {
   border-bottom: 1px solid #e0e0e0;
   padding-bottom: 12px;
@@ -385,6 +405,10 @@
   border-radius: 4px;
   padding: 5px 8px;
   margin-bottom: 8px;
+}
+
+.warning-section-group {
+  margin-bottom: 10px;
 }
 
 .warning-header {
@@ -738,4 +762,10 @@
   border: 0;
   border-top: 1px solid #e7c873;
   margin: 6px 0;
+}
+
+.warning-section-divider {
+  border: 0;
+  border-top: 1px solid #d8d8d8;
+  margin: 8px 0 0;
 }
