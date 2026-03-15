@@ -83,6 +83,29 @@ const getChangeItemClass = (changeType: ChangeType, stylesMap: Record<string, st
   return stylesMap.changeItemMoved;
 };
 
+const formatDetailedEntryLabel = (entry: StudentAssignmentChange): string => {
+  const reason = entry.reason || '';
+  if (reason.toUpperCase().includes('BALANSERING')) {
+    const fromLabel = entry.fromBlokk > 0 ? `Blokk ${entry.fromBlokk}` : 'ingen blokk';
+    const toLabel = entry.toBlokk > 0 ? `Blokk ${entry.toBlokk}` : 'ingen blokk';
+    return `Balansering: ${fromLabel} \u2192 ${toLabel}`;
+  }
+  return reason;
+};
+
+const getDetailedEntryClass = (entry: StudentAssignmentChange, stylesMap: Record<string, string>): string => {
+  const reasonUpper = (entry.reason || '').toUpperCase();
+  if (reasonUpper.includes('ADVARSEL')) {
+    return stylesMap.changeItemWarning;
+  }
+
+  if (reasonUpper.includes('BALANSERING')) {
+    return stylesMap.changeItemNotice;
+  }
+
+  return getChangeItemClass(getChangeType(entry.fromBlokk, entry.toBlokk), stylesMap);
+};
+
 const getWordLineStyle = (changeType: ChangeType): string => {
   if (changeType === 'added') {
     return 'background:#eaf9f0;border-left:3px solid #2f8f5b;color:#1f5d3d;';
@@ -378,15 +401,14 @@ export const ChangeLogView = ({ changeLog, currentStudents, onOpenStudentCard }:
           <ul className={styles.changeList}>
             {mode === 'detailed'
               ? group.changes.map((entry, index) => {
-                const changeType = getChangeType(entry.fromBlokk, entry.toBlokk);
                 return (
                   <li
                     key={`${group.studentId}-${entry.changedAt}-${index}`}
-                    className={`${styles.changeItem} ${getChangeItemClass(changeType, styles)}`.trim()}
+                    className={`${styles.changeItem} ${getDetailedEntryClass(entry, styles)}`.trim()}
                   >
                     <span className={styles.changeTime}>{formatTimestamp(entry.changedAt)}</span>
-                    <span>
-                      <strong>{entry.subject}</strong>: {entry.reason}
+                    <span title={entry.reason}>
+                      <strong>{entry.subject}</strong>: {formatDetailedEntryLabel(entry)}
                     </span>
                   </li>
                 );

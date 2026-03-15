@@ -78,9 +78,36 @@ export const MergedDataView = ({
     }
   };
 
-  const columnMatches = (cellValue: string | null, filters: string[]): boolean => {
+  const tokenizeSearch = (value: string): string[] => {
+    return value
+      .toLocaleLowerCase('nb')
+      .split(/[^\p{L}\p{N}]+/u)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
+  };
+
+  const nameMatchesFilter = (cellValue: string, filter: string): boolean => {
+    const nameTokens = tokenizeSearch(cellValue);
+    const filterTokens = tokenizeSearch(filter);
+
+    if (filterTokens.length === 0) {
+      return true;
+    }
+
+    // Require every typed token to appear in at least one name token, regardless of order.
+    return filterTokens.every((queryToken) => {
+      return nameTokens.some((nameToken) => nameToken.includes(queryToken));
+    });
+  };
+
+  const columnMatches = (cellValue: string | null, filters: string[], column: string): boolean => {
     if (filters.length === 0) return true;
     if (!cellValue) return false;
+
+    if (column === 'navn') {
+      return filters.some((filter) => nameMatchesFilter(cellValue, filter));
+    }
+
     return filters.some(filter =>
       cellValue.toLowerCase().includes(filter.toLowerCase())
     );
@@ -88,16 +115,16 @@ export const MergedDataView = ({
 
   const filteredData = data.filter(row => {
     const baseMatch =
-      columnMatches(row.navn, columnFilters.navn) &&
-      columnMatches(row.klasse, columnFilters.klasse) &&
-      columnMatches(row.reserve, columnFilters.reserve);
+      columnMatches(row.navn, columnFilters.navn, 'navn') &&
+      columnMatches(row.klasse, columnFilters.klasse, 'klasse') &&
+      columnMatches(row.reserve, columnFilters.reserve, 'reserve');
     
     if (!baseMatch) return false;
     
     // Check dynamic blokk fields
     for (const field of blokkFields) {
       const value = row[field as keyof StandardField] as string | null;
-      if (!columnMatches(value, columnFilters[field])) {
+      if (!columnMatches(value, columnFilters[field], field)) {
         return false;
       }
     }

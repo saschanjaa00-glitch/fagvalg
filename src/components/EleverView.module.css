@@ -28,7 +28,7 @@
 
 .filterButton {
   border: 1px solid #d7d7d7;
-  background: #f6f6f6;
+  background: #ffffff;
   color: #444;
   padding: 6px 10px;
   border-radius: 6px;
@@ -38,7 +38,7 @@
 }
 
 .filterButton:hover {
-  background: #eeeeee;
+  background: #f3f8ff;
 }
 
 .filterButton:disabled {

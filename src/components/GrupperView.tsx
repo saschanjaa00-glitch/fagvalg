@@ -197,12 +197,12 @@ const getMovementStatus = (
 
 const sortStudents = (rows: VisibleStudentRow[]): VisibleStudentRow[] => {
   return [...rows].sort((left, right) => {
-    const classCompare = compareText(left.klasse, right.klasse);
-    if (classCompare !== 0) {
-      return classCompare;
+    const nameCompare = compareText(left.navn, right.navn);
+    if (nameCompare !== 0) {
+      return nameCompare;
     }
 
-    return compareText(left.navn, right.navn);
+    return compareText(left.klasse, right.klasse);
   });
 };
 
@@ -225,6 +225,7 @@ export const GrupperView = ({
   const [bulkTargetSubject, setBulkTargetSubject] = useState('');
   const [bulkTargetBlokk, setBulkTargetBlokk] = useState('1');
   const [showMassUpdateDialog, setShowMassUpdateDialog] = useState(false);
+  const [pendingFjern, setPendingFjern] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
 
   const studentById = useMemo(() => {
@@ -628,6 +629,7 @@ export const GrupperView = ({
 
   const closeMassUpdateDialog = () => {
     setShowMassUpdateDialog(false);
+    setPendingFjern(false);
     if (expandedGroup) {
       setBulkTargetSubject(expandedGroup.subject);
       setBulkTargetBlokk(String(expandedGroup.blokkNumber));
@@ -1150,11 +1152,22 @@ export const GrupperView = ({
 
             <div className={styles.modalActions}>
               <button type="button" className={styles.primaryButton} onClick={() => { void handleMoveSelected(); }}>
-                Oppdater
+                Endre
               </button>
-              <button type="button" className={styles.linkActionButton} onClick={() => { void handleRemoveSelected(); }}>
-                Fjern
-              </button>
+              {!pendingFjern ? (
+                <button type="button" className={styles.secondaryButton} onClick={() => { setPendingFjern(true); }}>
+                  Fjern
+                </button>
+              ) : (
+                <>
+                  <button type="button" className={styles.secondaryButton} onClick={() => { void handleRemoveSelected(); }}>
+                    Bekreft ({selectedStudentIds.length})
+                  </button>
+                  <button type="button" className={styles.linkActionButton} onClick={() => { setPendingFjern(false); }}>
+                    Angre
+                  </button>
+                </>
+              )}
               <button type="button" className={styles.linkActionButton} onClick={closeMassUpdateDialog}>
                 Avbryt
               </button>
