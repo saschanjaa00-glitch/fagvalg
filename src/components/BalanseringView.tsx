@@ -116,6 +116,7 @@ export const BalanseringView = ({
   const [presetMode, setPresetMode] = useState<BalancePresetMode>('even');
   const [parametersExpanded, setParametersExpanded] = useState(false);
   const [excludedSubjectsExpanded, setExcludedSubjectsExpanded] = useState(false);
+  const [diagnosticsExpanded, setDiagnosticsExpanded] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [lastResult, setLastResult] = useState<ProgressiveHybridBalanceResult | null>(null);
 
@@ -260,7 +261,7 @@ export const BalanseringView = ({
         <p className={styles.description}>
           Blokk-kollisjoner repareres forst, for appen balanserer gruppene. Logg per elev finner du pa Endringslogg
           etterpa, denne kan brukes for a gjore endringene i InSchool. Forst, sjekk lassebegreninger, sett opp hvilke
-          blokker hvert trinn skal kunne bruke. Velg sa type balansering. Fa under maks tar minst tid, men kan gi mer
+          blokker hvert trinn skal kunne bruke. Velg sa type balansering. Få antall under maks tar minst tid, men kan gi mer
           skjevfordelte grupper enn Balanser mest mulig jevnt. Er det fag som ikke skal balanseres, kan disse utelukkes
           fra balansering.
         </p>
@@ -322,7 +323,7 @@ export const BalanseringView = ({
             className={`${styles.presetBtn} ${presetMode === 'underMax' ? styles.presetBtnActive : ''}`.trim()}
             onClick={() => selectPreset('underMax')}
           >
-            Fa under maks
+            Få antall under maks
           </button>
           <button
             type="button"
@@ -531,7 +532,7 @@ export const BalanseringView = ({
 
         <div className={styles.actionRow}>
           <button type="button" className={styles.primaryBtn} onClick={runBalancing}>
-            Kjor balansering
+            Kjør balansering
           </button>
           {statusMessage && <span className={styles.status}>{statusMessage}</span>}
         </div>
@@ -542,7 +543,7 @@ export const BalanseringView = ({
             <div className={styles.runStatusGrid}>
               <div>Pass: {lastResult.diagnostics.passesRun}</div>
               <div>Flytt: {lastResult.diagnostics.moveCount}</div>
-              <div>Over maks for: {lastResult.diagnostics.beforeOvercapSeatCount}</div>
+              <div>Over maks før: {lastResult.diagnostics.beforeOvercapSeatCount}</div>
               <div>Over maks etter: {lastResult.diagnostics.afterOvercapSeatCount}</div>
               <div>Unike elever: {lastResult.diagnostics.uniqueStudentsMoved}</div>
               <div>Lookahead forsok: {lastResult.diagnostics.lookaheadAttempts}</div>
@@ -557,42 +558,55 @@ export const BalanseringView = ({
 
       {lastResult && (
         <section className={styles.card}>
-          <h4>Diagnostikk</h4>
-          <div className={styles.diagnosticsGrid}>
-            <div>Score for: {formatNumber(lastResult.diagnostics.beforeScore.total)}</div>
-            <div>Score etter: {formatNumber(lastResult.diagnostics.afterScore.total)}</div>
-            <div>Over maks for: {lastResult.diagnostics.beforeOvercapSeatCount}</div>
-            <div>Over maks etter: {lastResult.diagnostics.afterOvercapSeatCount}</div>
-            <div>Flytt: {lastResult.diagnostics.moveCount}</div>
-            <div>Unike elever: {lastResult.diagnostics.uniqueStudentsMoved}</div>
-            <div>Repeterte flytt: {lastResult.diagnostics.repeatedMoveCount}</div>
-            <div>Pass: {lastResult.diagnostics.passesRun}</div>
-            <div>Lookahead forsok: {lastResult.diagnostics.lookaheadAttempts}</div>
-            <div>Lookahead suksess: {lastResult.diagnostics.lookaheadSuccess}</div>
-            <div>Lookahead rollback: {lastResult.diagnostics.lookaheadRollback}</div>
-            <div>Uloselige kollisjoner: {lastResult.diagnostics.unresolvedCollisions.length}</div>
-          </div>
+          <button
+            type="button"
+            className={styles.collapsibleHeaderBtn}
+            onClick={() => setDiagnosticsExpanded((prev) => !prev)}
+            aria-expanded={diagnosticsExpanded}
+          >
+            <span className={styles.chevron}>{diagnosticsExpanded ? '▼' : '▶'}</span>
+            <span>Diagnostikk</span>
+          </button>
 
-          <div className={styles.subSection}>
-            <h5>Siste flytt</h5>
-            <div className={styles.movesList}>
-              {lastResult.moveRecords.length === 0 ? (
-                <div>Ingen flytt i denne kjoringen.</div>
-              ) : (
-                lastResult.moveRecords.slice(-50).reverse().map((move, index) => (
-                  <div key={`${move.studentId}-${move.subjectCode}-${index}`} className={styles.moveRow}>
-                    <strong>{move.studentName}</strong>
-                    <span>
-                      {move.subjectName}: {move.fromGroupCode}/B{move.fromBlock} {'->'} {move.toGroupCode}/B{move.toBlock}
-                    </span>
-                    <span>
-                      {move.reason}, delta {formatNumber(move.scoreDelta)}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          {diagnosticsExpanded && (
+            <>
+              <div className={styles.diagnosticsGrid}>
+                <div>Score for: {formatNumber(lastResult.diagnostics.beforeScore.total)}</div>
+                <div>Score etter: {formatNumber(lastResult.diagnostics.afterScore.total)}</div>
+                <div>Over maks før: {lastResult.diagnostics.beforeOvercapSeatCount}</div>
+                <div>Over maks etter: {lastResult.diagnostics.afterOvercapSeatCount}</div>
+                <div>Flytt: {lastResult.diagnostics.moveCount}</div>
+                <div>Unike elever: {lastResult.diagnostics.uniqueStudentsMoved}</div>
+                <div>Repeterte flytt: {lastResult.diagnostics.repeatedMoveCount}</div>
+                <div>Pass: {lastResult.diagnostics.passesRun}</div>
+                <div>Lookahead forsok: {lastResult.diagnostics.lookaheadAttempts}</div>
+                <div>Lookahead suksess: {lastResult.diagnostics.lookaheadSuccess}</div>
+                <div>Lookahead rollback: {lastResult.diagnostics.lookaheadRollback}</div>
+                <div>Uloselige kollisjoner: {lastResult.diagnostics.unresolvedCollisions.length}</div>
+              </div>
+
+              <div className={styles.subSection}>
+                <h5>Siste flytt</h5>
+                <div className={styles.movesList}>
+                  {lastResult.moveRecords.length === 0 ? (
+                    <div>Ingen flytt i denne kjoringen.</div>
+                  ) : (
+                    lastResult.moveRecords.slice(-50).reverse().map((move, index) => (
+                      <div key={`${move.studentId}-${move.subjectCode}-${index}`} className={styles.moveRow}>
+                        <strong>{move.studentName}</strong>
+                        <span>
+                          {move.subjectName}: {move.fromGroupCode}/B{move.fromBlock} {'->'} {move.toGroupCode}/B{move.toBlock}
+                        </span>
+                        <span>
+                          {move.reason}, delta {formatNumber(move.scoreDelta)}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </section>
       )}
     </div>

@@ -114,13 +114,19 @@
   cursor: pointer;
 }
 
-.presetBtn:hover {
+.presetBtn:not(.presetBtnActive):hover {
   background: #eef4fb;
 }
 
 .presetBtnActive {
   background: #1f6fb2;
   border-color: #1f6fb2;
+  color: #ffffff;
+}
+
+.presetBtnActive:hover {
+  background: #1a5f99;
+  border-color: #1a5f99;
   color: #ffffff;
 }
 

@@ -77,7 +77,7 @@ function App() {
   
   const [columnMapperExpanded, setColumnMapperExpanded] = useState(false);
   const [activeDataTab, setActiveDataTab] = useState<
-    'import' | 'subjects' | 'groups' | 'students' | 'elever' | 'balancing' | 'changelog' | 'export'
+    'import' | 'subjects' | 'groups' | 'students' | 'elever' | 'balancing' | 'changelog'
   >('import');
   const [activeGroupTab, setActiveGroupTab] = useState<GroupSubview>('subjects');
   const [activeStudentTab, setActiveStudentTab] = useState<StudentSubview>('elever');
@@ -1132,15 +1132,6 @@ function App() {
                       <button
                         type="button"
                         role="tab"
-                        aria-selected={activeDataTab === 'export'}
-                        className={`data-tab ${activeDataTab === 'export' ? 'data-tab-active' : ''}`.trim()}
-                        onClick={() => setActiveDataTab('export')}
-                      >
-                        Eksporter
-                      </button>
-                      <button
-                        type="button"
-                        role="tab"
                         aria-selected={activeDataTab === 'changelog'}
                         className={`data-tab ${activeDataTab === 'changelog' ? 'data-tab-active' : ''}`.trim()}
                         onClick={() => setActiveDataTab('changelog')}
@@ -1367,30 +1358,6 @@ function App() {
                   onRestrictionsChange={setClassBlockRestrictions}
                   onApplyResult={handleApplyBalancingResult}
                 />
-              ) : activeDataTab === 'export' ? (
-                <div className="action-buttons">
-                  <button
-                    onClick={handleExportDetailed}
-                    className="export-btn"
-                    title="Eksporter med separate blokk-kolonner og fullstendige fagnavn"
-                  >
-                    Eksporter til Excel (full)
-                  </button>
-                  <button
-                    onClick={handleExport}
-                    className="export-btn"
-                    title="Eksporter sammenslått data som Excel-fil"
-                  >
-                    Eksporter til Novaschem (.xlsx)
-                  </button>
-                  <button
-                    onClick={handleExportText}
-                    className="export-btn"
-                    title="Eksporter som tabulatorseparert tekstfil med fagnummer"
-                  >
-                    Eksporter til Novaschem (.txt)
-                  </button>
-                </div>
               ) : activeDataTab === 'students' ? (
                 <MergedDataView
                   data={filteredMergedData}
