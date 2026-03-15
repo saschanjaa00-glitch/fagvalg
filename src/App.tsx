@@ -91,6 +91,7 @@ function App() {
   >({});
   const [warningIgnoreDraftByStudentId, setWarningIgnoreDraftByStudentId] = useState<Record<string, string>>({});
   const [selectedEleverStudentId, setSelectedEleverStudentId] = useState('');
+  const [eleverViewActivationToken, setEleverViewActivationToken] = useState(0);
   const [selectedMergedSubject, setSelectedMergedSubject] = useState('');
   const [classBlockRestrictions, setClassBlockRestrictions] = useState<ClassBlockRestrictions>(
     DEFAULT_CLASS_BLOCK_RESTRICTIONS
@@ -212,6 +213,14 @@ function App() {
       setActiveStudentTab(activeDataTab);
     }
   }, [activeDataTab]);
+
+  useEffect(() => {
+    if (activeDataTab !== 'elever' || selectedEleverStudentId) {
+      return;
+    }
+
+    setEleverViewActivationToken((prev) => prev + 1);
+  }, [activeDataTab, selectedEleverStudentId]);
 
   useEffect(() => {
     if (!isStudentExportMenuOpen) {
@@ -1380,6 +1389,8 @@ function App() {
                   changeLog={studentAssignmentChanges}
                   onStudentDataUpdate={handleStudentAssignmentsUpdated}
                   externallySelectedStudentId={selectedEleverStudentId}
+                  onExternalSelectionHandled={() => setSelectedEleverStudentId('')}
+                  activationToken={eleverViewActivationToken}
                 />
               )}
             </div>

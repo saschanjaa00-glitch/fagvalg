@@ -23,6 +23,8 @@ interface EleverViewProps {
   changeLog: StudentAssignmentChange[];
   onStudentDataUpdate: (updatedData: StandardField[], changes: StudentAssignmentChange[]) => void;
   externallySelectedStudentId?: string;
+  onExternalSelectionHandled?: () => void;
+  activationToken?: number;
 }
 
 interface AssignmentEntry {
@@ -190,6 +192,8 @@ export const EleverView = ({
   changeLog,
   onStudentDataUpdate,
   externallySelectedStudentId,
+  onExternalSelectionHandled,
+  activationToken,
 }: EleverViewProps) => {
   const studentRowRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const hasInitializedSelectionRef = useRef(false);
@@ -273,6 +277,15 @@ export const EleverView = ({
   }, [filteredStudents, selectedStudentId]);
 
   useEffect(() => {
+    if (externallySelectedStudentId || selectedStudentId || filteredStudents.length === 0) {
+      return;
+    }
+
+    hasInitializedSelectionRef.current = true;
+    setSelectedStudentId(filteredStudents[0].studentId);
+  }, [activationToken, externallySelectedStudentId, filteredStudents, selectedStudentId]);
+
+  useEffect(() => {
     if (filteredStudents.length === 0) {
       setSelectedStudentId('');
       return;
@@ -323,7 +336,8 @@ export const EleverView = ({
     };
 
     scrollToSelectedRow();
-  }, [externallySelectedStudentId]);
+    onExternalSelectionHandled?.();
+  }, [externallySelectedStudentId, onExternalSelectionHandled]);
 
   const getSubjectGroupMetrics = (subject: string): SubjectGroupMetrics => {
     const result: SubjectGroupMetrics = {
