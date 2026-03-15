@@ -2,38 +2,52 @@
   min-height: 100vh;
   background: #f5f5f5;
   color: #222;
-  padding: 20px 12px;
+  padding: 24px clamp(16px, 2.5vw, 32px);
 }
 
 .header {
   text-align: center;
-  padding-bottom: 16px;
+  padding: 12px 8px 18px;
   margin-bottom: 16px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid #d8e0ea;
 }
 
 .header h1 {
-  margin: 0 0 8px 0;
-  font-size: 20px;
-  color: #222;
-  font-weight: 600;
+  margin: 0;
+  font-size: clamp(26px, 3vw, 34px);
+  font-weight: 750;
+  letter-spacing: 0.015em;
+  line-height: 1.05;
+  color: #163252;
+}
+
+.header h1::after {
+  content: '';
+  display: block;
+  width: 78px;
+  height: 3px;
+  margin: 10px auto 0;
+  border-radius: 999px;
+  background: #3e73aa;
 }
 
 .header p {
-  margin: 0;
-  color: #666;
-  font-size: 13px;
+  margin: 11px 0 0;
+  color: #4f5f73;
+  font-size: clamp(12px, 1.25vw, 14px);
+  font-weight: 500;
+  letter-spacing: 0.01em;
 }
 
 .main {
-  max-width: 900px;
+  max-width: 1080px;
   margin: 0 auto;
 }
 
 .content-container {
   background: #ffffff;
   border-radius: 6px;
-  padding: 16px;
+  padding: clamp(16px, 1.8vw, 24px);
   border: 1px solid #e0e0e0;
 }
 
@@ -224,6 +238,7 @@
 .data-tabs {
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
   margin-bottom: 0;
   border-bottom: 1px solid #e0e0e0;
   padding-bottom: 8px;
@@ -231,7 +246,7 @@
 
 .data-tab {
   border: 1px solid #d7d7d7;
-  background: #f6f6f6;
+  background: #ffffff;
   color: #555;
   padding: 6px 10px;
   border-radius: 6px;
@@ -241,13 +256,13 @@
 }
 
 .data-tab:hover {
-  background: #efefef;
+  background: #f3f8ff;
 }
 
 .data-tab-active {
-  background: #ffffff;
-  color: #222;
-  border-color: #bbbbbb;
+  background: #dcedff;
+  color: #1a4f86;
+  border-color: #6f97c8;
 }
 
 .data-tab-panel {

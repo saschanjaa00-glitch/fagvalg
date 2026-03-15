@@ -54,11 +54,8 @@
 .table {
   width: 100%;
   border-collapse: collapse;
+  margin-top: 6px;
   font-size: 12px;
-}
-
-.table thead {
-  background: #eef3f8;
 }
 
 .table th,
@@ -67,6 +64,13 @@
   border-bottom: 1px solid #dde6ef;
   text-align: left;
   vertical-align: top;
+}
+
+.table th {
+  color: #51647f;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .sortButton {
@@ -88,29 +92,16 @@
 }
 
 .groupRowExpanded {
-  background: #f1f7fd;
+  background: #eaf2ff;
 }
 
-.expandButton {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: none;
-  background: transparent;
-  color: #17466f;
-  font: inherit;
-  font-weight: 700;
-  padding: 0;
+.groupRow {
   cursor: pointer;
 }
 
-.expandButton:hover {
-  text-decoration: underline;
-}
-
-.expandIcon {
-  color: #5b7ea1;
-  font-size: 11px;
+.subjectCell {
+  font-weight: 700;
+  color: #173d63;
 }
 
 .groupCell {
@@ -134,6 +125,35 @@
   font-weight: 700;
 }
 
+.endringerCell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.changeAdded {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1f7a3c;
+}
+
+.changeRemoved {
+  font-size: 12px;
+  font-weight: 700;
+  color: #b82222;
+}
+
+.changeNone {
+  font-size: 12px;
+  color: #a0aab6;
+}
+
+.changeDetail {
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.75;
+}
+
 .detailRow td {
   padding: 0;
   background: #fbfdff;
@@ -142,6 +162,7 @@
 .detailPanel {
   padding: 12px;
   border-top: 1px solid #d7e4f0;
+  background: #fbfdff;
 }
 
 .bulkBar {

@@ -168,10 +168,6 @@
   transition: font-weight 0.15s ease;
 }
 
-.subjectRow:hover .subjectNameCell {
-  font-weight: 700;
-}
-
 .subjectRow:hover .totalCell {
   background: #cfe8ff;
   color: #0f3f70;
@@ -180,6 +176,10 @@
 .table th:not(:first-child):not(:last-child),
 .table td:not(:first-child):not(:last-child) {
   text-align: center;
+}
+
+.subjectRow:hover .subjectNameCell {
+  font-weight: 700;
 }
 
 .exportBtn {
@@ -262,6 +262,8 @@
   display: grid;
   width: 100%;
   gap: 4px;
+  min-height: 24px;
+  align-content: center;
 }
 
 .groupCardsGridOne {
@@ -362,7 +364,7 @@
 
 .groupEmptySlot {
   width: 100%;
-  min-height: 30px;
+  min-height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;

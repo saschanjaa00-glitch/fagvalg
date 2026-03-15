@@ -950,19 +950,10 @@ export const GrupperView = ({
                 {renderSortLabel('Fag', 'subject')}
               </button>
             </th>
-            <th>
-              <button type="button" className={styles.sortButton} onClick={() => toggleSort('group')}>
-                {renderSortLabel('Gruppe', 'group')}
-              </button>
-            </th>
+            <th>Endringer</th>
             <th>
               <button type="button" className={styles.sortButton} onClick={() => toggleSort('count')}>
                 {renderSortLabel('Elever', 'count')}
-              </button>
-            </th>
-            <th>
-              <button type="button" className={styles.sortButton} onClick={() => toggleSort('max')}>
-                {renderSortLabel('Maks', 'max')}
               </button>
             </th>
           </tr>
@@ -973,34 +964,35 @@ export const GrupperView = ({
 
             return (
               <Fragment key={row.key}>
-                <tr key={row.key} className={`${styles.groupRow} ${isExpanded ? styles.groupRowExpanded : ''}`.trim()}>
+                <tr
+                  key={row.key}
+                  className={`${styles.groupRow} ${isExpanded ? styles.groupRowExpanded : ''}`.trim()}
+                  onClick={() => setExpandedGroupKey((prev) => (prev === row.key ? null : row.key))}
+                >
                   <td>{row.blokk}</td>
+                  <td className={styles.subjectCell}>{row.subject}</td>
                   <td>
-                    <button
-                      type="button"
-                      className={styles.expandButton}
-                      onClick={() => setExpandedGroupKey((prev) => (prev === row.key ? null : row.key))}
-                    >
-                      <span className={styles.expandIcon}>{isExpanded ? '▼' : '▶'}</span>
-                      <span>{row.subject}</span>
-                    </button>
-                  </td>
-                  <td>
-                    <div className={styles.groupCell}>
-                      <span className={styles.groupLabel}>{row.groupLabel}</span>
-                      {(row.recentInCount > 0 || row.recentOutCount > 0) && (
-                        <span className={styles.changeBadge}>
-                          +{row.recentInCount} / -{row.recentOutCount}
+                    {(() => {
+                      const net = row.recentInCount - row.recentOutCount;
+                      if (net === 0 && row.recentInCount === 0) {
+                        return <span className={styles.changeNone}>—</span>;
+                      }
+                      return (
+                        <span className={net > 0 ? styles.changeAdded : net < 0 ? styles.changeRemoved : styles.changeNone}>
+                          {net > 0 ? '+' : ''}{net}
+                          {' '}
+                          <span className={styles.changeDetail}>
+                            (+{row.recentInCount} | -{row.recentOutCount})
+                          </span>
                         </span>
-                      )}
-                    </div>
+                      );
+                    })()}
                   </td>
                   <td>{row.count}</td>
-                  <td>{row.max}</td>
                 </tr>
                 {isExpanded && expandedGroup && expandedGroup.key === row.key && (
                   <tr className={styles.detailRow}>
-                    <td colSpan={5}>
+                    <td colSpan={4}>
                       <div className={styles.detailPanel}>
                         <div className={styles.studentSectionHeader}>
                           <div>
@@ -1018,10 +1010,24 @@ export const GrupperView = ({
                         </div>
 
                         <div className={styles.selectionActions}>
-                          <button type="button" className={styles.primaryButton} onClick={openMassUpdateDialog}>
+                          <button
+                            type="button"
+                            className={styles.primaryButton}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openMassUpdateDialog();
+                            }}
+                          >
                             Masseoppdater ({selectedActiveCount} valgt)
                           </button>
-                          <button type="button" className={styles.linkActionButton} onClick={() => setSelectedStudentIds([])}>
+                          <button
+                            type="button"
+                            className={styles.linkActionButton}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setSelectedStudentIds([]);
+                            }}
+                          >
                             Tøm valg
                           </button>
                         </div>
