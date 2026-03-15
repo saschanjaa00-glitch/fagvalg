@@ -310,7 +310,7 @@
   text-align: left;
   cursor: pointer;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow: visible;
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
@@ -356,14 +356,63 @@
 }
 
 .studentCardName {
+  display: block;
   font-weight: 600;
   color: #14293d;
   line-height: 1.2;
   font-size: 12px;
+  width: 100%;
   max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.studentNameWithTooltip {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.studentNameTooltip {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  min-width: 220px;
+  max-width: min(320px, 70vw);
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #c7d8ea;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(26, 57, 89, 0.18);
+  color: #1b3550;
+  z-index: 120;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-2px);
+  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s ease;
+  pointer-events: none;
+}
+
+.studentNameWithTooltip:hover .studentNameTooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.studentNameTooltipLine {
+  display: block;
+  font-size: 11px;
+  line-height: 1.35;
+  font-weight: 500;
+}
+
+.studentNameTooltipLine + .studentNameTooltipLine {
+  margin-top: 3px;
+}
+
+.studentNameTooltipLineBold {
+  font-weight: 700;
 }
 
 .studentCardMeta {

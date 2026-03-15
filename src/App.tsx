@@ -1002,8 +1002,8 @@ function App() {
       <main className="main">
         <div className="content-container">
           <header className="header">
-            <h1>Fagvalg - Oversikt</h1>
-            <p>Slå sammen fagvalg fra flere programområder og trinn</p>
+            <h1>Fagvalg - Oversikt og balanseringsverktøy</h1>
+            <p>Laget av Sascha Njaa Tjelta</p>
           </header>
 
           <>

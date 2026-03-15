@@ -126,25 +126,6 @@ const isBlockAllowedForStudent = (
   return restrictions[classLevel]?.[blokkNumber as 1 | 2 | 3 | 4] ?? true;
 };
 
-const formatTimestamp = (iso: string): string => {
-  if (!iso) {
-    return '';
-  }
-
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) {
-    return iso;
-  }
-
-  return new Intl.DateTimeFormat('nb-NO', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
-};
-
 const getStudentId = (student: StandardField, index: number): string => {
   return student.studentId || `${student.navn || 'ukjent'}:${student.klasse || 'ukjent'}:${index}`;
 };
@@ -155,6 +136,21 @@ const getBlokkKey = (blokkNumber: number): BlokkField => {
 
 const formatSubjects = (subjects: string[]): string | null => {
   return subjects.length > 0 ? subjects.join(', ') : null;
+};
+
+const getStudentSubjectsByBlokkLines = (student: StandardField, visibleBlokkCount: number): string[] => {
+  const assignments: string[] = [];
+
+  for (let blokkNumber = 1; blokkNumber <= visibleBlokkCount; blokkNumber += 1) {
+    const subjects = parseSubjects(student[getBlokkKey(blokkNumber)] as string | null);
+    if (subjects.length === 0) {
+      continue;
+    }
+
+    assignments.push(`Blokk ${blokkNumber}: ${subjects.join(', ')}`);
+  }
+
+  return assignments.length > 0 ? assignments : ['Ingen fag tildelt'];
 };
 
 const buildChangeKey = (studentId: string, subject: string): string => {
@@ -227,6 +223,15 @@ export const GrupperView = ({
   const [showMassUpdateDialog, setShowMassUpdateDialog] = useState(false);
   const [pendingFjern, setPendingFjern] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
+
+  const getStudentHoverDetails = (studentId: string): string[] => {
+    const lookup = studentById.get(studentId);
+    if (!lookup) {
+      return [];
+    }
+
+    return getStudentSubjectsByBlokkLines(lookup.student, visibleBlokkCount);
+  };
 
   const studentById = useMemo(() => {
     const map = new Map<string, StudentLookupEntry>();
@@ -1037,6 +1042,7 @@ export const GrupperView = ({
                         <div className={styles.studentCardsGrid}>
                           {visibleActiveStudents.map((student) => {
                             const isSelected = selectedStudentIds.includes(student.studentId);
+                            const hoverDetails = getStudentHoverDetails(student.studentId);
 
                             return (
                               <button
@@ -1049,7 +1055,6 @@ export const GrupperView = ({
                                 ].filter(Boolean).join(' ')}
                                 onClick={() => handleToggleStudent(student.studentId)}
                                 onDoubleClick={() => onOpenStudentCard?.(student.studentId)}
-                                title={[student.navn, student.klasse, student.statusLabel, student.reason].filter(Boolean).join(' | ')}
                               >
                                 <span className={styles.studentCardCheckboxWrap}>
                                   <input
@@ -1062,7 +1067,21 @@ export const GrupperView = ({
                                   />
                                 </span>
                                 <span className={styles.studentCardMain}>
-                                  <span className={styles.studentCardName}>{student.navn}</span>
+                                  <span className={styles.studentNameWithTooltip}>
+                                    <span className={styles.studentCardName}>{student.navn}</span>
+                                    {hoverDetails.length > 0 && (
+                                      <span className={styles.studentNameTooltip} role="tooltip" aria-hidden="true">
+                                        {hoverDetails.map((line, index) => (
+                                          <span
+                                            key={`${student.studentId}-tooltip-${index}`}
+                                            className={`${styles.studentNameTooltipLine} ${index % 2 === 1 ? styles.studentNameTooltipLineBold : ''}`.trim()}
+                                          >
+                                            {line}
+                                          </span>
+                                        ))}
+                                      </span>
+                                    )}
+                                  </span>
                                   <span className={styles.studentCardMeta}>{student.klasse}</span>
                                 </span>
                               </button>
@@ -1075,17 +1094,35 @@ export const GrupperView = ({
                             <h5 className={styles.movedOutTitle}>Flyttet ut av gruppen</h5>
                             <div className={styles.studentCardsGrid}>
                               {visibleMovedOutStudents.map((student) => (
-                                <div
-                                  key={student.studentId}
-                                  className={`${styles.studentCard} ${styles.studentCardMovedOut}`.trim()}
-                                  onDoubleClick={() => onOpenStudentCard?.(student.studentId)}
-                                  title={[student.navn, student.klasse, student.statusLabel, formatTimestamp(student.changedAt), student.reason].filter(Boolean).join(' | ')}
-                                >
-                                  <span className={styles.studentCardMain}>
-                                    <span className={styles.studentCardName}>{student.navn}</span>
-                                    <span className={styles.studentCardMeta}>{student.klasse}</span>
-                                  </span>
-                                </div>
+                                (() => {
+                                  const hoverDetails = getStudentHoverDetails(student.studentId);
+                                  return (
+                                    <div
+                                      key={student.studentId}
+                                      className={`${styles.studentCard} ${styles.studentCardMovedOut}`.trim()}
+                                      onDoubleClick={() => onOpenStudentCard?.(student.studentId)}
+                                    >
+                                      <span className={styles.studentCardMain}>
+                                        <span className={styles.studentNameWithTooltip}>
+                                          <span className={styles.studentCardName}>{student.navn}</span>
+                                          {hoverDetails.length > 0 && (
+                                            <span className={styles.studentNameTooltip} role="tooltip" aria-hidden="true">
+                                              {hoverDetails.map((line, index) => (
+                                                <span
+                                                  key={`${student.studentId}-moved-tooltip-${index}`}
+                                                  className={`${styles.studentNameTooltipLine} ${index % 2 === 1 ? styles.studentNameTooltipLineBold : ''}`.trim()}
+                                                >
+                                                  {line}
+                                                </span>
+                                              ))}
+                                            </span>
+                                          )}
+                                        </span>
+                                        <span className={styles.studentCardMeta}>{student.klasse}</span>
+                                      </span>
+                                    </div>
+                                  );
+                                })()
                               ))}
                             </div>
                           </div>
